@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   s.name = %q{tuersteher}
-  s.version = "0.1.0"
+  s.version = "0.0.4"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 1.2") if s.respond_to? :required_rubygems_version=
   s.authors = ["Bernd Ledig"]
@@ -12,7 +12,7 @@ Gem::Specification.new do |s|
   s.extra_rdoc_files = ["lib/tuersteher.rb"]
   s.files = ["lib/tuersteher.rb", "Rakefile", "init.rb", "Manifest", "tuersteher.gemspec"]
   s.homepage = %q{http://github.com/bledig/tuersteher}
-  s.rdoc_options = ["--line-numbers", "--inline-source", "--title", "Tuersteher"]
+  s.rdoc_options = ["--line-numbers", "--inline-source", "--title", "Tuersteher", "--main", "README.rdoc"]
   s.require_paths = ["lib"]
   s.rubyforge_project = %q{tuersteher}
   s.rubygems_version = %q{1.3.5}

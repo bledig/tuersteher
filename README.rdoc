@@ -1,0 +1,43 @@
+
+= Tuersteher
+Security-Layer for Rails-Application acts like a firewall.
+It's check your URL's or Modells to have the rights for this.
+
+== Install
+
+  gem install tuersteher --source http://gems.github.org
+
+
+== Usage
+
+Create in your Rails-Application the rules-file "config/access_rules.rb"
+(or copy the sample from samples-directory and modify)
+
+Here is as small sample for "config/access_rules.rb"
+
+  # Path-Acces-Rules
+  grant_path '/', :get, :all
+  grant_path '/admin-area/', :all, :ADMIN
+
+  # Model-Acces-Rules
+  grant_model Product, :view, :all
+  grant_model Product, :update, :EDITOR do |product, currentuser|
+                         product.owner_id == currentuser.id
+                       end
+
+Then extend your ApplicationController with:
+
+  include Tuersteher::ControllerExtensions
+  before_filter :check_access # methode is from Tuersteher::ControllerExtensions
+
+Check if your authendicate-system has implemented the methods:
+
+  * current_user
+  * access_denied
+
+If not, just implemen it (see samples/application_controller.rb)
+
+== License
+
+LGPL V3 (see licence.txt)
+

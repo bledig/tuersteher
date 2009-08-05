@@ -4,18 +4,34 @@
 # Die Regeln werden aus der Datei "config/acces_rules.rb" geladen
 #
 # Author: Bernd Ledig
-# Version 0.03
 #
 
 require 'singleton'
 
 module Tuersteher
 
+  # Logger to log messages with timestamp and severity
+  class TLogger < Logger
+    @@logger = nil
+
+    def format_message(severity, timestamp, progname, msg)
+      "#{timestamp.to_formatted_s(:db)} #{severity} #{msg}\n"
+    end
+
+    def self.logger
+      @@logger ||= self.new(File.join(Rails.root, 'log', 'tuersteher.log'))
+    end
+
+    def self.logger= logger
+      @@logger = logger
+    end
+  end
+
   class AccessRulesStorage
     include Singleton
 
     attr_reader :path_rules, :model_rules
-    attr_accessor :rules_config_file
+    attr_accessor :rules_config_file # to set own access_rules-path
 
     DEFAULT_RULES_CONFIG_FILE = File.join(Rails.root, 'config', 'access_rules.rb')
 
@@ -40,7 +56,7 @@ module Tuersteher
         @last_mtime = rules_file.mtime
         content = rules_file.read
         eval content
-        Rails.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
+        Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
       end
       rules_file.close
       @was_read = true
@@ -111,9 +127,9 @@ module Tuersteher
       acr = AccessRulesStorage.instance.path_rules.detect do |rule|
         rule.has_access?(path, method, current_user)
       end
-      if logger.debug?
+      if Tuersteher::TLogger.logger.debug?
         s = acr!=nil ? "granted with #{acr}" : 'denied'
-        logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
+        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
       end
       acr!=nil
     end
@@ -131,11 +147,11 @@ module Tuersteher
       access = AccessRulesStorage.instance.model_rules.detect do |rule|
         rule.has_access? model, permission, current_user
       end
-      if ActiveRecord::Base.logger.debug?
+      if Tuersteher::TLogger.logger.debug?
         if model.instance_of?(Class)
-          ActiveRecord::Base.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access ? access : 'denied'}")
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access ? access : 'denied'}")
         else
-          ActiveRecord::Base.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access ? access : 'denied'}")
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access ? access : 'denied'}")
         end
       end
       access!=nil
@@ -154,7 +170,9 @@ module Tuersteher
     # fuer aktullen Request erlaubt ist
     def check_access
       unless path_access?(request.request_uri, request.method)
-        logger.warn "Tuersteher#check_access: access denied for #{request.request_uri} :#{request.method}"
+        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{request.method}"
+        Tuersteher::TLogger.logger.warn msg
+        logger.warn msg  # log message also for Rails-Default logger
         access_denied  # Methode aus dem authenticated_system, welche ein redirect zum login auslöst
       end
     end
@@ -276,23 +294,23 @@ module Tuersteher
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
       m_class = model.instance_of?(Class) ? model : model.class
       if @clazz!=m_class.to_s && @clazz!=:all
-        #Rails.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")
+        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")
         return false
       end
 
       if @access_type!=:all && @access_type!=perm
-        #Rails.logger.debug("#{to_s}.has_access? => false why #{@access_type}!=:all && #{@access_type}!=#{perm}")
+        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@access_type}!=:all && #{@access_type}!=#{perm}")
         return false
       end
 
       if @roles.first!=:all && (user.nil? || !user.has_role?(*@roles))
-        #Rails.logger.debug("#{to_s}.has_access? => false why #{@roles.first}!=:all && #{!user.has_role?(*@roles)}")
+        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@roles.first}!=:all && #{!user.has_role?(*@roles)}")
         return false
       end
 
       if @block
         unless @block.call(model, user)
-          #Rails.logger.debug("#{to_s}.has_access? => false why block return false")
+          #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why block return false")
           return false
         end
       end
