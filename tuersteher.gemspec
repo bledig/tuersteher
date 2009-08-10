@@ -2,11 +2,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{tuersteher}
-  s.version = "0.0.4"
+  s.version = "0.0.5"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 1.2") if s.respond_to? :required_rubygems_version=
   s.authors = ["Bernd Ledig"]
-  s.date = %q{2009-08-05}
+  s.date = %q{2009-08-10}
   s.description = %q{Security-Layer for Rails-Application acts like a firewall.}
   s.email = %q{bernd@ledig.info}
   s.extra_rdoc_files = ["lib/tuersteher.rb"]
