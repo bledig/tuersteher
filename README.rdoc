@@ -5,7 +5,7 @@ It's check your URL's or Modells to have the rights for this.
 
 == Install
 
-  gem install tuersteher --source http://gems.github.org
+  gem install bledig-tuersteher --source http://gems.github.org
 
 
 == Usage
@@ -21,8 +21,8 @@ Here is as small sample for "config/access_rules.rb"
 
   # Model-Acces-Rules
   grant_model Product, :view, :all
-  grant_model Product, :update, :EDITOR do |product, currentuser|
-                         product.owner_id == currentuser.id
+  grant_model Product, :update, :EDITOR do |product, current_user|
+                         product.owner_id == current_user.id
                        end
 
 Then extend your ApplicationController with:
@@ -39,5 +39,5 @@ If not, just implemen it (see samples/application_controller.rb)
 
 == License
 
-LGPL V3 (see licence.txt)
+LGPL V3 (see license.txt)
 

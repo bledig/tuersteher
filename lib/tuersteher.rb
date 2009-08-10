@@ -19,7 +19,10 @@ module Tuersteher
     end
 
     def self.logger
-      @@logger ||= self.new(File.join(Rails.root, 'log', 'tuersteher.log'))
+      return @@logger if @@logger
+      @@logger = self.new(File.join(Rails.root, 'log', 'tuersteher.log'), 3)
+      @@logger.level = INFO if Rails.env != 'development'
+      @@logger
     end
 
     def self.logger= logger
