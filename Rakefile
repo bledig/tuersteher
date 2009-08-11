@@ -2,21 +2,6 @@
 require 'rubygems'
 require 'rake'
 
-=begin
-
-require 'echoe'
-
-Echoe.new('tuersteher', '0.0.5') do |p|
-  p.description    = "Security-Layer for Rails-Application acts like a firewall."
-  p.url            = "http://github.com/bledig/tuersteher"
-  p.author         = "Bernd Ledig"
-  p.email          = "bernd@ledig.info"
-  p.ignore_pattern = ["tmp/*", "script/*"]
-  p.development_dependencies = []
-end
-
-=end
-
 begin
   require 'jeweler'
   Jeweler::Tasks.new do |gemspec|
