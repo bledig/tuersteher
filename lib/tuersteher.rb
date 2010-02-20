@@ -33,7 +33,6 @@ module Tuersteher
   class AccessRulesStorage
     include Singleton
 
-    attr_reader :path_rules, :model_rules
     attr_accessor :rules_config_file # to set own access_rules-path
 
     DEFAULT_RULES_CONFIG_FILE = File.join(Rails.root, 'config', 'access_rules.rb')
@@ -43,15 +42,19 @@ module Tuersteher
       @model_rules = []
     end
 
-    # Laden der AccesRules aus den Dateien
-    #  config/access_rules.rb
-    # In der development-Enviroment wird diese nach jeder Änderung
-    # neu geladen, sonst nur einmal
-    def load_access_rules
-      return if @was_read && Rails.env!='development'
-      read_rules
+    def path_rules
+      read_rules unless @was_read
+      @path_rules
     end
 
+    def model_rules
+      read_rules unless @was_read
+      @model_rules
+    end
+
+
+    # Laden der AccesRules aus den Dateien
+    #  config/access_rules.rb
     def read_rules
       config_file = @rules_config_file || DEFAULT_RULES_CONFIG_FILE
       rules_file = File.new config_file
@@ -108,6 +111,55 @@ module Tuersteher
 
   end
 
+  class AccessRules
+
+    # Pruefen Zugriff fuer eine Web-action
+    # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
+    # path        Pfad der Webresource (String)
+    # method      http-Methode (:get, :put, :delete, :post), default ist :get
+    #
+    def self.path_access?(user, path, method = :get)
+      rule = AccessRulesStorage.instance.path_rules.detect do |r|
+        r.fired?(path, method, user)
+      end
+      if Tuersteher::TLogger.logger.debug?
+        if rule.nil?
+          s = 'denied'
+        elsif rule.deny
+          s = "denied with #{rule}"
+        else
+          s = "granted with #{rule}"
+        end
+        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
+      end
+      rule!=nil && !rule.deny
+    end
+
+    # Pruefen Zugriff auf ein Model-Object
+    #
+    # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
+    # model       das Model-Object
+    # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
+    #
+    # liefert true/false
+    def self.model_access? user, model, permission
+      raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
+      return false unless model
+
+      access = AccessRulesStorage.instance.model_rules.detect do |rule|
+        rule.has_access? model, permission, user
+      end
+      if Tuersteher::TLogger.logger.debug?
+        if model.instance_of?(Class)
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access ? access : 'denied'}")
+        else
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access ? access : 'denied'}")
+        end
+      end
+      access!=nil
+    end
+  end
+
 
 
   # Module zum Include in Controllers
@@ -139,21 +191,7 @@ module Tuersteher
       # dann diese in ein http-path wandeln
       path = url_for(path.merge(:only_path => true)) if path.instance_of?(Hash)
 
-      AccessRulesStorage.instance.load_access_rules # das load cached automatisch
-      rule = AccessRulesStorage.instance.path_rules.detect do |r|
-        r.fired?(path, method, current_user)
-      end
-      if Tuersteher::TLogger.logger.debug?
-        if rule.nil?
-          s = 'denied'
-        elsif rule.deny
-          s = "denied with #{rule}"
-        else
-          s = "granted with #{rule}"
-        end
-        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
-      end
-      rule!=nil && !rule.deny
+      AccessRules.path_access? current_user, path, method
     end
 
     # Pruefen Zugriff auf ein Model-Object
@@ -163,21 +201,7 @@ module Tuersteher
     #
     # liefert true/false
     def model_access? model, permission
-      raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
-      return false unless model
-
-      AccessRulesStorage.instance.load_access_rules # das load cached automatisch
-      access = AccessRulesStorage.instance.model_rules.detect do |rule|
-        rule.has_access? model, permission, current_user
-      end
-      if Tuersteher::TLogger.logger.debug?
-        if model.instance_of?(Class)
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access ? access : 'denied'}")
-        else
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access ? access : 'denied'}")
-        end
-      end
-      access!=nil
+      AccessRules.model_access? current_user, model, permission
     end
 
     def self.included(base)
@@ -192,6 +216,10 @@ module Tuersteher
     # Pruefen, ob Zugriff des current_user
     # fuer aktullen Request erlaubt ist
     def check_access
+
+      # im dev-mode rules bei jeden request auf Änderungen prüfen
+      AccessRulesStorage.instance.read_rules if Rails.env=='development'
+
       unless path_access?(request.request_uri, request.method)
         msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{request.method}"
         Tuersteher::TLogger.logger.warn msg
@@ -204,7 +232,8 @@ module Tuersteher
 
 
   class PathAccessRule
-    attr_reader :path, :method, :roles, :deny
+    attr_reader :path, :method, :roles
+    attr_accessor :deny
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
 
