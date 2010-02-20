@@ -14,7 +14,7 @@
 #
 grant_path '/', :get, :all
 grant_path :all, :all, :ADMIN
-
+deny_path '/user/lock', :user
 
 #
 # Model-Object-Zugriffsregeln

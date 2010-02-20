@@ -76,6 +76,19 @@ module Tuersteher
       @path_rules << PathAccessRule.new(url_path, http_methode, *accepted_roles)
     end
 
+    # definiert HTTP-Pfad-basierende Ablehnungsregel
+    #
+    # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
+    #                  wird als RegEX-Ausdruck ausgewertet
+    # method:          http-Methode, es sind hier erlaubt :get, :put, :delete, :post, :all
+    # accepted_roles:  Aufzaehlung der erfoderlichen Rolen (oder-Verknuepfung), es sind nur Symbole zulaessig
+    #                  hier ist auch ein Array von Symbolen möglich
+    def deny_path url_path, http_methode, *accepted_roles
+      rule = PathAccessRule.new(url_path, http_methode, *accepted_roles)
+      rule.deny = true
+      @path_rules << rule
+    end
+
     # definiert Model-basierende Zugriffsregel
     #
     # model_class:  Model-Klassenname oder :all fuer alle
@@ -127,14 +140,20 @@ module Tuersteher
       path = url_for(path.merge(:only_path => true)) if path.instance_of?(Hash)
 
       AccessRulesStorage.instance.load_access_rules # das load cached automatisch
-      acr = AccessRulesStorage.instance.path_rules.detect do |rule|
-        rule.has_access?(path, method, current_user)
+      rule = AccessRulesStorage.instance.path_rules.detect do |r|
+        r.fired?(path, method, current_user)
       end
       if Tuersteher::TLogger.logger.debug?
-        s = acr!=nil ? "granted with #{acr}" : 'denied'
+        if rule.nil?
+          s = 'denied'
+        elsif rule.deny
+          s = "denied with #{rule}"
+        else
+          s = "granted with #{rule}"
+        end
         Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
       end
-      acr!=nil
+      rule!=nil && !rule.deny
     end
 
     # Pruefen Zugriff auf ein Model-Object
@@ -144,6 +163,7 @@ module Tuersteher
     #
     # liefert true/false
     def model_access? model, permission
+      raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
       return false unless model
 
       AccessRulesStorage.instance.load_access_rules # das load cached automatisch
@@ -184,7 +204,7 @@ module Tuersteher
 
 
   class PathAccessRule
-    attr_reader :path, :method, :roles
+    attr_reader :path, :method, :roles, :deny
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
 
@@ -225,7 +245,7 @@ module Tuersteher
     # welcher die Methode 'has_role?(*roles)' besitzen muss.
     # *roles ist dabei eine Array aus Symbolen
     #
-    def has_access?(path, method, user)
+    def fired?(path, method, user)
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
       if @path!=:all && !(@path =~ path)
         return false
@@ -246,7 +266,7 @@ module Tuersteher
 
 
     def to_s
-      "PathAccesRule[#{@path}, #{@method}, #{@roles.join(' ')}]"
+      "PathAccesRule[#{@path}, #{@method}, #{@roles.join(' ')}#{@deny ? ' deny' : ''}]"
     end
 
   end
