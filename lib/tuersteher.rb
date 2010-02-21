@@ -60,6 +60,8 @@ module Tuersteher
       rules_file = File.new config_file
       if @last_mtime.nil? || rules_file.mtime > @last_mtime
         @last_mtime = rules_file.mtime
+        @path_rules = []
+        @model_rules = []
         content = rules_file.read
         eval content
         Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
@@ -374,16 +376,6 @@ module Tuersteher
     end
 
   end
-
-
-  # ActiveRecord erweitern mit
-  # Sicherheits-Check
-  #
-  #  class ActiveRecord::Base
-  #    before_create {|model| SecurityModule::SecurityService.check_model_access model, :create }
-  #    before_update {|model| SecurityModule::SecurityService.check_model_access model, :update }
-  #    before_destroy{|model| SecurityModule::SecurityService.check_model_access model, :destroy }
-  #  end
 
 
 end
