@@ -363,6 +363,7 @@ module Tuersteher
       end
 
       if @block
+        return false if model.instance_of?(Class) # kein Block-Call wenn Classe als model übergeben wurde
         unless @block.call(model, user)
           #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why block return false")
           return false
