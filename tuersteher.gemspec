@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{tuersteher}
-  s.version = "0.0.8"
+  s.version = "0.1.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Bernd Ledig"]
-  s.date = %q{2010-02-21}
+  s.date = %q{2010-05-29}
   s.description = %q{Security-Layer for Rails-Application acts like a firewall.}
   s.email = %q{bernd@ledig.info}
   s.extra_rdoc_files = [
@@ -31,7 +31,7 @@ Gem::Specification.new do |s|
   s.homepage = %q{http://github.com/bledig/tuersteher}
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
-  s.rubygems_version = %q{1.3.5}
+  s.rubygems_version = %q{1.3.6}
   s.summary = %q{Security-Layer for Rails-Application}
 
   if s.respond_to? :specification_version then

@@ -58,6 +58,7 @@ module Tuersteher
     def read_rules
       config_file = @rules_config_file || DEFAULT_RULES_CONFIG_FILE
       rules_file = File.new config_file
+      @was_read = false
       if @last_mtime.nil? || rules_file.mtime > @last_mtime
         @last_mtime = rules_file.mtime
         @path_rules = []
@@ -68,6 +69,8 @@ module Tuersteher
       end
       rules_file.close
       @was_read = true
+    rescue => ex
+      Tuersteher::TLogger.logger.error "Tuersteher::AccessRulesStorage - Error in rules: #{ex.message}\n\t"+ex.backtrace.join("\n\t")
     end
 
     # definiert HTTP-Pfad-basierende Zugriffsregel
