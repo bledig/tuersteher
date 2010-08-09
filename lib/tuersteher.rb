@@ -35,7 +35,7 @@ module Tuersteher
 
     attr_accessor :rules_config_file # to set own access_rules-path
 
-    DEFAULT_RULES_CONFIG_FILE = File.join(Rails.root, 'config', 'access_rules.rb')
+    DEFAULT_RULES_CONFIG_FILE = 'access_rules.rb' # in config-dir
 
     def initialize
       @path_rules = []
@@ -56,8 +56,8 @@ module Tuersteher
     # Laden der AccesRules aus den Dateien
     #  config/access_rules.rb
     def read_rules
-      config_file = @rules_config_file || DEFAULT_RULES_CONFIG_FILE
-      rules_file = File.new config_file
+      @rules_config_file ||= File.join(Rails.root, 'config', DEFAULT_RULES_CONFIG_FILE)
+      rules_file = File.new @rules_config_file
       @was_read = false
       if @last_mtime.nil? || rules_file.mtime > @last_mtime
         @last_mtime = rules_file.mtime
