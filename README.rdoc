@@ -5,7 +5,7 @@ It's check your URL's or Modells to have the rights for this.
 
 == Install
 
-  gem install bledig-tuersteher --source http://gems.github.org
+  gem install tuersteher
 
 
 == Usage
@@ -34,6 +34,10 @@ Check if your authendicate-system has implemented the methods:
 
   * current_user
   * access_denied
+
+and the cuurent_user should have a method
+
+  * has_role(*roles)
 
 If not, just implemen it (see samples/application_controller.rb)
 
