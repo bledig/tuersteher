@@ -225,8 +225,9 @@ module Tuersteher
       # im dev-mode rules bei jeden request auf Änderungen prüfen
       AccessRulesStorage.instance.read_rules if Rails.env=='development'
 
-      unless path_access?(request.request_uri, request.method)
-        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{request.method}"
+      req_method = request.method.downcase.to_sym
+      unless path_access?(request.request_uri, req_method)
+        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method}"
         Tuersteher::TLogger.logger.warn msg
         logger.warn msg  # log message also for Rails-Default logger
         access_denied  # Methode aus dem authenticated_system, welche ein redirect zum login auslöst
