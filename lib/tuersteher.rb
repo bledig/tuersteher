@@ -114,6 +114,25 @@ module Tuersteher
       @model_rules << ModelAccessRule.new(model_class, access_type, *roles, &block)
     end
 
+    # definiert Model-basierende Zugriffsregel
+    #
+    # model_class:  Model-Klassenname oder :all fuer alle
+    # access_type:  Zugriffsart (:create, :update, :destroy, :all o.A. selbst definierte Typen)
+    # roles         Aufzählung der erforderliche Rolen (:all für ist egal),
+    #               hier ist auch ein Array von Symbolen möglich
+    # block         optionaler Block, wird mit model und user aufgerufen und muss true oder false liefern
+    #               hier ein Beispiel mit Block:
+    #               <code>
+    #                 # Regel, in der sich jeder User selbst aendern darf
+    #                 grant_model(User, :update, :all){|model,user| model.id==user.id}
+    #               </code>
+    #
+    def deny_model model_class, access_type, *roles, &block
+      rule = ModelAccessRule.new(model_class, access_type, *roles, &block)
+      rule.deny = true
+      @model_rules << rule
+    end
+
   end
 
   class AccessRules
@@ -151,17 +170,18 @@ module Tuersteher
       raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
       return false unless model
 
-      access = AccessRulesStorage.instance.model_rules.detect do |rule|
-        rule.has_access? model, permission, user
+      rule = AccessRulesStorage.instance.model_rules.detect do |rule|
+        rule.fired? model, permission, user
       end
+      access = rule && !rule.deny
       if Tuersteher::TLogger.logger.debug?
         if model.instance_of?(Class)
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access ? access : 'denied'}")
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access || 'denied'} #{rule}")
         else
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access ? access : 'denied'}")
+          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access || 'denied'} #{rule}")
         end
       end
-      access!=nil
+      access
     end
   end
 
@@ -310,7 +330,7 @@ module Tuersteher
 
   class ModelAccessRule
     attr_reader :clazz, :access_type, :role, :block
-
+    attr_accessor :deny
 
     # erzeugt neue Object-Zugriffsregel
     #
@@ -348,7 +368,7 @@ module Tuersteher
     # *roles ist dabei eine Array aus Symbolen
     #
     #
-    def has_access? model, perm, user
+    def fired? model, perm, user
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
       m_class = model.instance_of?(Class) ? model : model.class
       if @clazz!=m_class.to_s && @clazz!=:all
@@ -377,7 +397,7 @@ module Tuersteher
     end
 
     def to_s
-      "ModelAccessRule[#{@clazz}, #{@access_type}, #{@roles.join(' ')}]"
+      "ModelAccessRule[#{@clazz}, #{@access_type}, #{@roles.join(' ')}#{@deny ? ' deny' : ''}]"
     end
 
   end
