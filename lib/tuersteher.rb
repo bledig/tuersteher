@@ -159,6 +159,7 @@ module Tuersteher
       rule!=nil && !rule.deny
     end
 
+
     # Pruefen Zugriff auf ein Model-Object
     #
     # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
@@ -182,6 +183,14 @@ module Tuersteher
         end
       end
       access
+    end
+
+    # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
+    # wo der angegebene User nicht das angegebene Recht hat
+    #
+    # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+    def self.purge_collection user, collection, permission
+      collection.select{|model| model_access?(user, model, permission)}
     end
   end
 
@@ -229,10 +238,19 @@ module Tuersteher
       AccessRules.model_access? current_user, model, permission
     end
 
+    # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
+    # wo der akt. User nicht das angegebene Recht hat
+    #
+    # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+    def self.purge_collection collection, permission
+      AccessRules.purge_collection(current_user, collection, permission)
+    end
+
+
     def self.included(base)
       base.class_eval do
-        # Methoden path_access? und model_access? auch als Helper fuer die Views bereitstellen
-        helper_method :path_access?, :model_access?
+        # Diese Methoden  auch als Helper fuer die Views bereitstellen
+        helper_method :path_access?, :model_access?, :purge_collection
       end
     end
 
@@ -329,7 +347,7 @@ module Tuersteher
 
 
   class ModelAccessRule
-    attr_reader :clazz, :access_type, :role, :block
+    attr_reader :clazz, :access_type, :roles, :block
     attr_accessor :deny
 
     # erzeugt neue Object-Zugriffsregel
