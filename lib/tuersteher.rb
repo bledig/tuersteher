@@ -325,16 +325,17 @@ module Tuersteher
     #
     def fired?(path, method, user)
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
+
       if @path!=:all && !(@path =~ path)
         return false
       end
 
-      if @method!=:all && @method != method
+      if @http_method!=:all && @http_method != method
         return false
       end
 
       # ist jetzt role :all, dann prinzipiell Zugriff erlaubt
-      return true if @roles.nil?
+      return true if @roles.empty?
 
       if user && user.has_role?(*@roles)
         return true
@@ -344,7 +345,7 @@ module Tuersteher
 
 
     def to_s
-      "PathAccesRule[#{@path}, #{@method}, #{@roles.join(' ')}#{@deny ? ' deny' : ''}]"
+      "PathAccesRule[#{@path}, #{@http_method}, #{@roles.join(' ')}#{@deny ? ' deny' : ''}]"
     end
 
   end
