@@ -12,9 +12,13 @@
 #   Methode : :all, :get, :put, :post, :delete oder :edit 
 #   roles :Liste der berechtigten Rollen (es können mehrere Rollen durch Komma getrennt angegeben werden)
 #
-grant_path '/', :get, :all
-grant_path :all, :all, :ADMIN
-deny_path '/user/lock', :user
+#grant_path '/', :get, :all
+#grant_path :all, :all, :ADMIN
+#deny_path '/user/lock', :USER
+
+grant_path('/').method(:get)
+grant_path(:all).role(:ADMIN)
+deny_path('/user/lock').role(:USER)
 
 #
 # Model-Object-Zugriffsregeln

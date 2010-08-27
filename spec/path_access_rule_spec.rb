@@ -5,7 +5,7 @@ module Tuersteher
   describe PathAccessRule do
 
     before(:all) do
-      @rule = PathAccessRule.new '/admin', :get, :sysadmin, :admin
+      @rule = PathAccessRule.new('/admin').method(:get).role(:sysadmin).role(:admin)
     end
 
 
@@ -43,7 +43,7 @@ module Tuersteher
 
     context "Rule with :all as Path-Matcher" do
       before(:all) do
-        @rule = PathAccessRule.new :all, :get, :sysadmin, :admin
+        @rule = PathAccessRule.new(:all).method(:get).role(:sysadmin).role(:admin)
         @user = stub('user')
         @user.stub(:has_role?).and_return(true)
       end
@@ -60,9 +60,9 @@ module Tuersteher
     end
 
 
-    context "Rule with :all as Methode-Matcher" do
+    context "Rule with no Methode spezifed => all methods allowed" do
       before(:all) do
-        @rule = PathAccessRule.new '/admin', :all, :sysadmin, :admin
+        @rule = PathAccessRule.new('/admin').role(:sysadmin).role(:admin)
         @user = stub('user')
         @user.stub(:has_role?).and_return(true)
       end
@@ -80,9 +80,9 @@ module Tuersteher
     end
 
 
-    context "Rule with :all as Role-Matcher" do
+    context "Rule with no role spezifed => now role needed" do
       before(:all) do
-        @rule = PathAccessRule.new '/admin', :get, :all
+        @rule = PathAccessRule.new('/admin').method(:get)
         @user = stub('user')
         @user.stub(:has_role?).and_return(false)
       end

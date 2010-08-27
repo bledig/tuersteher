@@ -77,24 +77,21 @@ module Tuersteher
     #
     # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
     #                  wird als RegEX-Ausdruck ausgewertet
-    # method:          http-Methode, es sind hier erlaubt :get, :put, :delete, :post, :all
-    # accepted_roles:  Aufzaehlung der erfoderlichen Rolen (oder-Verknuepfung), es sind nur Symbole zulaessig
-    #                  hier ist auch ein Array von Symbolen möglich
-    def grant_path url_path, http_methode, *accepted_roles
-      @path_rules << PathAccessRule.new(url_path, http_methode, *accepted_roles)
+    def grant_path url_path
+      rule = PathAccessRule.new(url_path)
+      @path_rules << rule
+      rule
     end
 
     # definiert HTTP-Pfad-basierende Ablehnungsregel
     #
     # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
     #                  wird als RegEX-Ausdruck ausgewertet
-    # method:          http-Methode, es sind hier erlaubt :get, :put, :delete, :post, :all
-    # accepted_roles:  Aufzaehlung der erfoderlichen Rolen (oder-Verknuepfung), es sind nur Symbole zulaessig
-    #                  hier ist auch ein Array von Symbolen möglich
-    def deny_path url_path, http_methode, *accepted_roles
-      rule = PathAccessRule.new(url_path, http_methode, *accepted_roles)
+    def deny_path url_path
+      rule = PathAccessRule.new(url_path)
       rule.deny = true
       @path_rules << rule
+      rule
     end
 
     # definiert Model-basierende Zugriffsregel
@@ -276,7 +273,7 @@ module Tuersteher
 
 
   class PathAccessRule
-    attr_reader :path, :method, :roles
+    attr_reader :path, :http_method, :roles
     attr_accessor :deny
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
@@ -285,17 +282,9 @@ module Tuersteher
     # Zugriffsregel
     #
     # path          :all fuer beliebig, sonst String mit der http-path beginnen muss
-    # method        http-Methode, es sind hier erlaubt :get, :put, :delete, :post, :all
-    # needed_roles  Aufzaehlung der erfoderlichen Rolen (oder-Verknuepfung), es sind nur Symbole zulaessig
     #
-    def initialize(path, method, *needed_roles)
+    def initialize(path)
       raise "wrong path '#{path}'! Must be a String or :all ." unless path==:all or path.is_a?(String)
-      raise "wrong method '#{method}'! Must be #{METHOD_NAMES.join(', ')} !" unless METHOD_NAMES.include?(method)
-      raise "needed_roles expected!" if needed_roles.empty?
-      @roles = needed_roles.flatten
-      for r in @roles
-        raise "wrong role '#{r}'! Must be a symbol " unless r.is_a?(Symbol)
-      end
       @path = path
       if path != :all
         # path in regex ^#{path} wandeln ausser bei "/",
@@ -307,7 +296,23 @@ module Tuersteher
           @path = /^#{path}/
         end
       end
-      @method = method
+      @roles = []
+      @http_method = :all
+    end
+
+    # set httpmethode
+    # http_method        http-Method, allowed is :get, :put, :delete, :post, :all
+    def method(http_method)
+      raise "wrong method '#{http_method}'! Must be #{METHOD_NAMES.join(', ')} !" unless METHOD_NAMES.include?(http_method)
+      @http_method = http_method
+      self
+    end
+
+    # add role
+    def role(role_name)
+      raise "wrong role '#{role_name}'! Must be a symbol " unless role_name.is_a?(Symbol)
+      @roles << role_name
+      self
     end
 
 
@@ -329,7 +334,7 @@ module Tuersteher
       end
 
       # ist jetzt role :all, dann prinzipiell Zugriff erlaubt
-      return true if @roles.first == :all
+      return true if @roles.nil?
 
       if user && user.has_role?(*@roles)
         return true

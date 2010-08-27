@@ -14,10 +14,10 @@ module Tuersteher
     context 'path_access?' do
       before do
         rules = [
-          PathAccessRule.new('/', :all, :all),
-          PathAccessRule.new('/admin', :all, :admin),
-          PathAccessRule.new('/images', :get, :all),
-          PathAccessRule.new('/status', :get, :system)
+          PathAccessRule.new('/'),
+          PathAccessRule.new('/admin').role(:admin),
+          PathAccessRule.new('/images').method(:get),
+          PathAccessRule.new('/status').method(:get).role(:system)
         ]
         AccessRulesStorage.instance.stub(:path_rules).and_return(rules)
         @user = stub('user')
