@@ -273,7 +273,7 @@ module Tuersteher
 
 
   class PathAccessRule
-    attr_reader :path, :http_method, :roles
+    attr_reader :path, :http_method, :roles, :check_extensions
     attr_accessor :deny
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
@@ -316,6 +316,13 @@ module Tuersteher
     end
 
 
+    def extension method_name, methode_parameter=nil
+      @check_extensions ||= {}
+      @check_extensions[method_name] = methode_parameter
+      self
+    end
+
+
     # pruefen, ob Zugriff fuer angegebenen
     # path / method fuer den current_user erlaubt ist
     #
@@ -334,18 +341,34 @@ module Tuersteher
         return false
       end
 
-      # ist jetzt role :all, dann prinzipiell Zugriff erlaubt
-      return true if @roles.empty?
-
-      if user && user.has_role?(*@roles)
-        return true
+      if !@roles.empty? && (user.nil? || !user.has_role?(*@roles))
+        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@roles.first}!=:all && #{!user.has_role?(*@roles)}")
+        return false
       end
-      false
+
+      if @check_extensions
+        return false if user.nil?  # check_extensions need u user
+        @check_extensions.each do |key, value|
+          unless user.respond_to?(key)
+            Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why user have not check-extension methode '#{key}'!")
+            return false
+          end
+          if value
+            return false unless user.send(key,value)
+          else
+            return false unless user.send(key)
+          end
+        end
+      end
+
+      true
     end
 
 
     def to_s
-      "PathAccesRule[#{@path}, #{@http_method}, #{@roles.join(' ')}#{@deny ? ' deny' : ''}]"
+      s = "PathAccesRule[#{@deny ? 'DENY ' : ''}#{@path}, #{@http_method}, #{@roles.join(' ')}]"
+      s << " #{@check_extensions.inspect}" if @check_extensions
+      s
     end
 
   end

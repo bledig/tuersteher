@@ -87,12 +87,41 @@ module Tuersteher
         @user.stub(:has_role?).and_return(false)
       end
 
-      it "should fired for user with no rules" do
+      it "should fired for user with no roles" do
         @rule.fired?("/admin/xyz", :get, @user).should be_true
       end
 
       it "should not be fired with other path" do
         @rule.fired?("/xyz", :get, @user).should_not be_true
+      end
+    end
+
+
+    context "Rule with extension" do
+      before(:all) do
+        @rule = PathAccessRule.new('/admin').method(:get).extension(:modul_function?, :testvalue)
+        @rule2 = PathAccessRule.new('/admin').method(:get).extension(:modul_function2?)
+        @user = stub('user')
+        @user.stub(:has_role?).and_return(false)
+      end
+
+      it "should not be fired with user have not the check_extension" do
+        @rule.fired?("/admin", :get, @user).should_not be_true
+      end
+
+      it "should fired for user with true for check-extension" do
+        @user.should_receive(:modul_function?).with(:testvalue).and_return(true)
+        @rule.fired?("/admin/xyz", :get, @user).should be_true
+      end
+
+      it "should not be fired for user with false for check-extension" do
+        @user.should_receive(:modul_function?).with(:testvalue).and_return(false)
+        @rule.fired?("/admin/xyz", :get, @user).should_not be_true
+      end
+
+      it "should fired for rule2 and user with true for check-extension" do
+        @user.should_receive(:modul_function2?).and_return(true)
+        @rule2.fired?("/admin/xyz", :get, @user).should be_true
       end
     end
 

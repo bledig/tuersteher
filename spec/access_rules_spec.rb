@@ -5,11 +5,6 @@ require "spec_helper"
 module Tuersteher
 
   describe AccessRules do
-    before(:all) do
-      # Logger auf stdout stellen
-      TLogger.logger = Logger.new(STDOUT)
-    end
-
 
     context 'path_access?' do
       before do
