@@ -77,23 +77,13 @@ module Tuersteher
     #
     # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
     #                  wird als RegEX-Ausdruck ausgewertet
-    def grant_path url_path
+    def path url_path
       rule = PathAccessRule.new(url_path)
       @path_rules << rule
       rule
     end
 
-    # definiert HTTP-Pfad-basierende Ablehnungsregel
-    #
-    # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
-    #                  wird als RegEX-Ausdruck ausgewertet
-    def deny_path url_path
-      rule = PathAccessRule.new(url_path)
-      rule.deny = true
-      @path_rules << rule
-      rule
-    end
-
+    
     # definiert Model-basierende Zugriffsregel
     #
     # model_class:  Model-Klassenname oder :all fuer alle
@@ -146,14 +136,14 @@ module Tuersteher
       if Tuersteher::TLogger.logger.debug?
         if rule.nil?
           s = 'denied'
-        elsif rule.deny
+        elsif rule.deny?
           s = "denied with #{rule}"
         else
           s = "granted with #{rule}"
         end
         Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
       end
-      rule!=nil && !rule.deny
+      rule!=nil && !rule.deny?
     end
 
 
@@ -273,8 +263,6 @@ module Tuersteher
 
 
   class PathAccessRule
-    attr_reader :path, :http_method, :roles, :check_extensions
-    attr_accessor :deny
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
 
@@ -320,6 +308,19 @@ module Tuersteher
       @check_extensions ||= {}
       @check_extensions[method_name] = methode_parameter
       self
+    end
+
+    def grant
+      self
+    end
+
+    def deny
+      @deny = true
+      self
+    end
+
+    def deny?
+      @deny
     end
 
 

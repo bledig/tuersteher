@@ -12,13 +12,11 @@
 #   Methode : :all, :get, :put, :post, :delete oder :edit 
 #   roles :Liste der berechtigten Rollen (es können mehrere Rollen durch Komma getrennt angegeben werden)
 #
-#grant_path '/', :get, :all
-#grant_path :all, :all, :ADMIN
-#deny_path '/user/lock', :USER
 
-grant_path('/').method(:get)
-grant_path(:all).role(:ADMIN)
-deny_path('/user/lock').role(:USER)
+path('/').grant.method(:get)
+path(:all).grant.role(:ADMIN)
+path('/user/lock').deny.role(:USER).role(:APPROVER)
+path('/special').grant.extension(:special?, :area1)
 
 #
 # Model-Object-Zugriffsregeln
@@ -28,7 +26,15 @@ deny_path('/user/lock').role(:USER)
 #   Roles : Aufzählung der Rollen
 #   Block : optionaler Block, diesem wird die Model-Instance und der User als Parameter bereitgestellt
 
-grant_model String, :view, :all
-grant_model String, :view, :ADMIN, :EDITOR
-grant_model String, :update, :EDITOR do |model, user| model == user.name end
+#grant_model String, :view, :all
+#grant_model String, :view, :ADMIN, :EDITOR
+#grant_model String, :update, :EDITOR do |model, user| model == user.name end
 
+model(Todo).method(:view)
+model(Todo).method(:full_view).role(:ADMIN)
+model(Todo).method(:update).role(:EDITOR).extension(:owned_by?) # calls String.owned_by?(current_user)
+
+model(Todo) do
+  method(:view).all
+  
+end
