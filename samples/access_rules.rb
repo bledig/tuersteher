@@ -30,11 +30,10 @@ path('/special').grant.extension(:special?, :area1)
 #grant_model String, :view, :ADMIN, :EDITOR
 #grant_model String, :update, :EDITOR do |model, user| model == user.name end
 
-model(Todo).method(:view)
-model(Todo).method(:full_view).role(:ADMIN)
-model(Todo).method(:update).role(:EDITOR).extension(:owned_by?) # calls String.owned_by?(current_user)
+model(Dashboard).grant.permission(:view)
 
 model(Todo) do
-  method(:view).all
-  
+  grant.permission(:view)
+  grant.permission(:full_view).role(:ADMIN)
+  grant.permission(:update).role(:EDITOR).extension(:owned_by?) # calls Todo.owned_by?(current_user)
 end

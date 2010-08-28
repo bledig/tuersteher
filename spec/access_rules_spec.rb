@@ -76,18 +76,23 @@ module Tuersteher
 
 
     context 'model_access?' do
+
+      class SampleModel1; end
+      class SampleModel2; end
+
       before do
-        deny_rule =  ModelAccessRule.new(String, :update, :admin){|model, user| model=='no admin'}
-        deny_rule.deny = true
         rules = [
-          ModelAccessRule.new(Fixnum, :all, :all),
-          ModelAccessRule.new(String, :read, :all),
-          deny_rule,
-          ModelAccessRule.new(String, :update, :admin),
-          ModelAccessRule.new(String, :update, :user){|model, user| model=='test'},
+          ModelAccessRule.new(SampleModel1).grant.permission(:all),
+          ModelAccessRule.new(SampleModel2).grant.permission(:read),
+          ModelAccessRule.new(SampleModel2).grant.permission(:update).role(:user).extension(:owner?),
+          ModelAccessRule.new(SampleModel2).deny.permission(:create),
+          ModelAccessRule.new(SampleModel2).grant.permission(:all).role(:admin),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
         @user = stub('user')
+        @model1 = SampleModel1.new
+        @model2 = SampleModel2.new
+        @model2.stub(:owner?).and_return(false)
       end
 
 
@@ -97,13 +102,15 @@ module Tuersteher
         end
 
         it "should be true for this" do
-          AccessRules.model_access?(@user, 1234, :xyz).should be_true
-          AccessRules.model_access?(@user, 'xyz', :read).should be_true
-          AccessRules.model_access?(@user, 'test', :update).should be_true
+          AccessRules.model_access?(@user, @model1, :xyz).should be_true
+          @model2.stub(:owner?).and_return true
+          AccessRules.model_access?(@user, @model2, :read).should be_true
+          AccessRules.model_access?(@user, @model2, :update).should be_true
         end
 
         it "should not be true for this" do
-          AccessRules.model_access?(@user, 'xyz', :update).should_not be_true
+          AccessRules.model_access?(@user, @model2, :update).should_not be_true
+          AccessRules.model_access?(@user, @model2, :delete).should_not be_true
         end
       end
 
@@ -114,14 +121,14 @@ module Tuersteher
         end
 
         it "should be true for this" do
-          AccessRules.model_access?(@user, 1234, :xyz).should be_true
-          AccessRules.model_access?(@user, 'xyz', :read).should be_true
-          AccessRules.model_access?(@user, 'xyz', :update).should be_true
+          AccessRules.model_access?(@user, @model1, :xyz).should be_true
+          AccessRules.model_access?(@user, @model2, :read).should be_true
+          AccessRules.model_access?(@user, @model2, :update).should be_true
+          AccessRules.model_access?(@user, @model2, :delete).should be_true
         end
 
         it "should not be true for this" do
-          puts "\n===========================================================\n\n"
-          AccessRules.model_access?(@user, 'no admin', :update).should_not be_true
+          AccessRules.model_access?(@user, @model2, :create).should_not be_true
         end
       end
     end
@@ -129,27 +136,33 @@ module Tuersteher
 
 
     context 'purge_collection' do
+
+      class SampleModel
+        def owner? user; false; end
+      end
+
       before do
-        deny_rule =  ModelAccessRule.new(String, :update, :admin){|model, user| model=='no admin'}
-        deny_rule.deny = true
         rules = [
-          deny_rule,
-          ModelAccessRule.new(String, :update, :admin),
-          ModelAccessRule.new(String, :update, :user){|model, user| model=='test'},
+          ModelAccessRule.new(SampleModel).permission(:update).role(:admin),
+          ModelAccessRule.new(SampleModel).permission(:update).role(:user).extension(:owner?),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
         @user = stub('user')
-        @collection = ['xyz', 'test', 'no admin']
+        @model1 = SampleModel.new
+        @model2 = SampleModel.new
+        @model3 = SampleModel.new
+        @model3.stub(:owner?).and_return(true)
+        @collection = [@model1, @model2, @model3]
       end
 
-      it "Should return ['test'] for user with role=:user" do
+      it "Should return [@model3] for user with role=:user" do
         @user.stub(:has_role?){|role| role==:user}
-        AccessRules.purge_collection(@user, @collection, :update).should == ['test']
+        AccessRules.purge_collection(@user, @collection, :update).should == [@model3]
       end
 
-      it "Should return ['xyz', test'] for user with role=:admin" do
+      it "Should return all for user with role=:admin" do
         @user.stub(:has_role?){|role| role==:admin}
-        AccessRules.purge_collection(@user, @collection, :update).should == ['xyz', 'test']
+        AccessRules.purge_collection(@user, @collection, :update).should == @collection
       end
     end
 

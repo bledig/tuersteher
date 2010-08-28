@@ -5,13 +5,13 @@ module Tuersteher
   describe ModelAccessRule do
 
     before(:all) do
-      @rule = ModelAccessRule.new String, :read, :sysadmin, :admin
+      @rule = ModelAccessRule.new(String).grant.permission(:read).role(:sysadmin).role(:admin)
     end
 
     context "for User with role :admin" do
       before do
         @user = stub('user')
-        @user.stub(:has_role?).with(:sysadmin, :admin).and_return(true)
+        @user.stub(:has_role?){|role| role==:admin}
       end
 
       it "should be fired for String-Object and access-type :read" do
