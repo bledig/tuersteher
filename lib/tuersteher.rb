@@ -209,18 +209,14 @@ module Tuersteher
   #
   module ControllerExtensions
 
+    @@url_path_method = nil
 
     # Pruefen Zugriff fuer eine Web-action
     #
-    # path        Pfad der Webresource (String oder Hash mit Options)
+    # path        Pfad der Webresource (String)
     # method      http-Methode (:get, :put, :delete, :post), default ist :get
     #
     def path_access?(path, method = :get)
-
-      # ist path eine Hash (also der alte Stil mit :controller=> .., :action=>..)
-      # dann diese in ein http-path wandeln
-      path = url_for(path.merge(:only_path => true)) if path.instance_of?(Hash)
-
       AccessRules.path_access? current_user, path, method
     end
 
@@ -259,8 +255,12 @@ module Tuersteher
       # im dev-mode rules bei jeden request auf Änderungen prüfen
       AccessRulesStorage.instance.read_rules if Rails.env=='development'
 
+      # Rails3 hat andere url-path-methode
+      @@url_path_method ||= Rails.version[0..1]=='3.' ? :fullpath : :request_uri
+
       req_method = request.method.downcase.to_sym
-      unless path_access?(request.request_uri, req_method)
+      url_path = request.send(@@url_path_method)
+      unless path_access?(url_path, req_method)
         msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method}"
         Tuersteher::TLogger.logger.warn msg
         logger.warn msg  # log message also for Rails-Default logger
