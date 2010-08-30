@@ -1,7 +1,5 @@
 require "spec_helper"
 
-
-
 module Tuersteher
 
   describe AccessRules do

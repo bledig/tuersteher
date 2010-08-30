@@ -94,16 +94,6 @@ module Tuersteher
     # definiert Model-basierende Zugriffsregel
     #
     # model_class:  Model-Klassenname oder :all fuer alle
-    # access_type:  Zugriffsart (:create, :update, :destroy, :all o.A. selbst definierte Typen)
-    # roles         Aufzählung der erforderliche Rolen (:all für ist egal),
-    #               hier ist auch ein Array von Symbolen möglich
-    # block         optionaler Block, wird mit model und user aufgerufen und muss true oder false liefern
-    #               hier ein Beispiel mit Block:
-    #               <code>
-    #                 # Regel, in der sich jeder User selbst aendern darf
-    #                 grant_model(User, :update, :all){|model,user| model.id==user.id}
-    #               </code>
-    #
     def model model_class
       if block_given?
         @current_model_class = model_class
@@ -152,7 +142,7 @@ module Tuersteher
         end
         Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
       end
-      rule!=nil && !rule.deny?
+      !(rule.nil? || rule.deny?)
     end
 
 
@@ -270,6 +260,7 @@ module Tuersteher
 
   end
 
+
   # Astracte base class for Access-Rules
   class BaseAccessRule
 
@@ -304,14 +295,19 @@ module Tuersteher
       @deny
     end
 
+    def not
+      @not = true
+      self
+    end
+
     protected
 
     def grant_role? user
       return true if @roles.empty?
       return false if user.nil?
-      @roles.each do |role|
-        return true if user.has_role?(role)
-      end
+      role = @roles.detect{|r| user.has_role?(r)}
+      role = !role if @not
+      return true if role
       false
     end
 
@@ -358,7 +354,7 @@ module Tuersteher
     # path / method fuer den current_user erlaubt ist
     #
     # user ist ein Object (meist der Loginuser),
-    # welcher die Methode 'has_role?(*roles)' besitzen muss.
+    # welcher die Methode 'has_role?(role)' besitzen muss.
     # *roles ist dabei eine Array aus Symbolen
     #
     def fired?(path, method, user)
@@ -372,11 +368,7 @@ module Tuersteher
         return false
       end
 
-      if !@roles.empty? && (user.nil? || !user.has_role?(*@roles))
-        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@roles.first}!=:all && #{!user.has_role?(*@roles)}")
-        return false
-      end
-
+      return false unless grant_role?(user)
       return false unless grant_extension?(user)
 
       true
