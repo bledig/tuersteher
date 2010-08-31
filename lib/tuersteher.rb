@@ -445,7 +445,6 @@ module Tuersteher
     #
     def fired? model, perm, user
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
-      debugger
       m_class = model.instance_of?(Class) ? model : model.class
       if @clazz!=m_class.to_s && @clazz!=:all
         #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")

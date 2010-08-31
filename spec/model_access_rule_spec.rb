@@ -35,7 +35,7 @@ module Tuersteher
           @user.stub(:has_role?).and_return(false)
         end
 
-        it "should not be fired for String-Object and access-type :read" do
+        specify do
           @rule.fired?("test", :read, @user).should_not be_true
         end
       end
