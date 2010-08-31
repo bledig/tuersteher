@@ -37,30 +37,35 @@ module Tuersteher
 
     DEFAULT_RULES_CONFIG_FILE = 'access_rules.rb' # in config-dir
 
+    # private initializer why this class is a singleton
     def initialize
       @path_rules = []
       @model_rules = []
     end
 
+    # get all path_rules as array of PathAccessRule-Instances
     def path_rules
       read_rules unless @was_read
       @path_rules
     end
 
+    # get all model_rules as array of ModelAccessRule-Instances
     def model_rules
       read_rules unless @was_read
       @model_rules
     end
 
 
+    # evaluated rules_definitions and create path-/model-rules
     def eval_rules rules_definitions
       @path_rules = []
       @model_rules = []
       eval rules_definitions
+      @was_read = true
       Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
     end
 
-    # Laden der AccesRules aus den Dateien
+    # Load AccesRules from file
     #  config/access_rules.rb
     def read_rules
       @rules_config_file ||= File.join(Rails.root, 'config', DEFAULT_RULES_CONFIG_FILE)
@@ -74,7 +79,6 @@ module Tuersteher
       rules_file.close
       if content
         eval_rules content
-        @was_read = true
       end
     rescue => ex
       Tuersteher::TLogger.logger.error "Tuersteher::AccessRulesStorage - Error in rules: #{ex.message}\n\t"+ex.backtrace.join("\n\t")
@@ -106,12 +110,16 @@ module Tuersteher
       end
     end
 
+    # create new rule as grant-rule
+    # and add this to the model_rules array
     def grant
       rule = ModelAccessRule.new(@current_model_class)
       @model_rules << rule
       rule.grant
     end
 
+    # create new rule as deny-rule
+    # and add this to the model_rules array
     def deny
       rule = ModelAccessRule.new(@current_model_class)
       @model_rules << rule
@@ -140,7 +148,8 @@ module Tuersteher
         else
           s = "granted with #{rule}"
         end
-        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(#{path}, #{method})  =>  #{s}")
+        usr_id = user.respond_to?(:id) ? user.id : user.object_id
+        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(user.id=#{usr_id}, path=#{path}, method=#{method})  =>  #{s}")
       end
       !(rule.nil? || rule.deny?)
     end
@@ -162,10 +171,13 @@ module Tuersteher
       end
       access = rule && !rule.deny?
       if Tuersteher::TLogger.logger.debug?
+        usr_id = user.respond_to?(:id) ? user.id : user.object_id
         if model.instance_of?(Class)
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model}, #{permission}) =>  #{access || 'denied'} #{rule}")
+          Tuersteher::TLogger.logger.debug(
+            "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model}, permission=#{permission}) =>  #{access || 'denied'} #{rule}")
         else
-          Tuersteher::TLogger.logger.debug("Tuersteher: model_access?(#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), #{permission}) =>  #{access || 'denied'} #{rule}")
+          Tuersteher::TLogger.logger.debug(
+            "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), permission=#{permission}) =>  #{access || 'denied'} #{rule}")
         end
       end
       access
@@ -251,7 +263,8 @@ module Tuersteher
       req_method = request.method.downcase.to_sym
       url_path = request.send(@@url_path_method)
       unless path_access?(url_path, req_method)
-        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method}"
+        usr_id = current_user.respond_to?(:id) ? current_user.id : current_user.object_id
+        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method} user.id=#{usr_id}"
         Tuersteher::TLogger.logger.warn msg
         logger.warn msg  # log message also for Rails-Default logger
         access_denied  # Methode aus dem authenticated_system, welche ein redirect zum login auslöst
@@ -275,26 +288,33 @@ module Tuersteher
       self
     end
 
-
-    def extension method_name, methode_parameter=nil
+    # add extension-definition
+    # parmaters:
+    #   method_name:      Symbol with the name of the method to call for addional check
+    #   expected_value:   optional expected value for the result of the with metho_name specified method, defalt is true
+    def extension method_name, expected_value=nil
       @check_extensions ||= {}
-      @check_extensions[method_name] = methode_parameter
+      @check_extensions[method_name] = expected_value
       self
     end
 
+    # mark this rule as grant-rule
     def grant
       self
     end
 
+    # mark this rule as deny-rule
     def deny
       @deny = true
       self
     end
 
+    # is this rule a deny-rule
     def deny?
       @deny
     end
 
+    # negate role-membership
     def not
       @not = true
       self
@@ -302,6 +322,7 @@ module Tuersteher
 
     protected
 
+    # check, if this rule granted for specified user
     def grant_role? user
       return true if @roles.empty?
       return false if user.nil?
@@ -384,6 +405,7 @@ module Tuersteher
 
     private
 
+    # check, if this rule grant the defined extension (if exist)
     def grant_extension? user
       return true if @check_extensions.nil?
       return false if user.nil?  # check_extensions need a user
@@ -426,7 +448,7 @@ module Tuersteher
       @clazz = clazz.instance_of?(Symbol) ? clazz : clazz.to_s
     end
 
-
+    # set the permission-name
     def permission permission_name
       @permission = permission_name
       self
@@ -470,6 +492,7 @@ module Tuersteher
 
     private
 
+    # check, if this rule grant the defined extension (if exist)
     def grant_extension? user, model
       return true if @check_extensions.nil?
       return false if model.nil?  # check_extensions need a model
