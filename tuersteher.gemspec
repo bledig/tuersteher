@@ -29,6 +29,7 @@ Gem::Specification.new do |s|
      "spec/acces_rules_storage_spec.rb",
      "spec/access_rules_spec.rb",
      "spec/model_access_rule_spec.rb",
+     "spec/model_extensions_spec.rb",
      "spec/path_access_rule_spec.rb",
      "spec/spec.opts",
      "spec/spec_helper.rb",
@@ -40,11 +41,12 @@ Gem::Specification.new do |s|
   s.rubygems_version = %q{1.3.7}
   s.summary = %q{Security-Layer for Rails-Application}
   s.test_files = [
-    "spec/acces_rules_storage_spec.rb",
-     "spec/path_access_rule_spec.rb",
+    "spec/path_access_rule_spec.rb",
      "spec/model_access_rule_spec.rb",
-     "spec/access_rules_spec.rb",
-     "spec/spec_helper.rb"
+     "spec/model_extensions_spec.rb",
+     "spec/acces_rules_storage_spec.rb",
+     "spec/spec_helper.rb",
+     "spec/access_rules_spec.rb"
   ]
 
   if s.respond_to? :specification_version then
