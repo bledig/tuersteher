@@ -260,6 +260,9 @@ module Tuersteher
       # Rails3 hat andere url-path-methode
       @@url_path_method ||= Rails.version[0..1]=='3.' ? :fullpath : :request_uri
 
+      # bind current_user on the current thread
+      Thread.current[:user] = current_user
+
       req_method = request.method.downcase.to_sym
       url_path = request.send(@@url_path_method)
       unless path_access?(url_path, req_method)
@@ -272,6 +275,55 @@ module Tuersteher
     end
 
   end
+
+
+
+  # Module for include in Model-Object-Classes
+  #
+  # Der Loginuser muss fuer die hier benoetigte Funktionalitaet
+  # die Methode:
+  #   has_role?(role)  # role the Name of the Role as Symbol
+  # besitzen.
+  #
+  # Sample for ActiveRecord-Class
+  #   class Sample < ActiveRecord::Base
+  #    include Tuersteher::ModelExtensions
+  #
+  #     def transfer_to account
+  #       check_model_access :transfer # raise a exception if not allowed
+  #       ....
+  #     end
+  #
+  #
+  module ModelExtensions
+
+    # Pruefen Zugriff auf ein Model-Object
+    #
+    # model       das Model-Object
+    # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
+    #
+    # liefert true/false
+    def check_model_access permission
+      unless AccessRules.model_access? read_current_user_from_thread, model, permission
+        raise SecurityError, "Access denied! Current user have not the permission '#{permission}' on Model-Object #{self}."
+      end
+    end
+
+    # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
+    # wo der akt. User nicht das angegebene Recht hat
+    #
+    # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+    def purge_collection collection, permission
+      AccessRules.purge_collection(read_current_user_from_thread, collection, permission)
+    end
+
+    private
+
+    def read_current_user_from_thread
+      Thread.current[:user]
+    end
+  end # of module ModelExtensions
+
 
 
   # Astracte base class for Access-Rules
