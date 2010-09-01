@@ -304,8 +304,8 @@ module Tuersteher
     #
     # liefert true/false
     def check_model_access permission
-      unless AccessRules.model_access? read_current_user_from_thread, model, permission
-        raise SecurityError, "Access denied! Current user have not the permission '#{permission}' on Model-Object #{self}."
+      unless AccessRules.model_access? read_current_user_from_thread, self, permission
+        raise SecurityError, "Access denied! Current user have no permission '#{permission}' on Model-Object #{self}."
       end
     end
 
