@@ -148,7 +148,7 @@ module Tuersteher
           else
             s = "granted with #{rule}"
           end
-          usr_id = user.respond_to?(:id) ? user.id : user.object_id
+          usr_id = user && user.respond_to?(:id) ? user.id : user.object_id
           Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(user.id=#{usr_id}, path=#{path}, method=#{method})  =>  #{s}")
         end
         !(rule.nil? || rule.deny?)
@@ -171,7 +171,7 @@ module Tuersteher
         end
         access = rule && !rule.deny?
         if Tuersteher::TLogger.logger.debug?
-          usr_id = user.respond_to?(:id) ? user.id : user.object_id
+          usr_id = user && user.respond_to?(:id) ? user.id : user.object_id
           if model.instance_of?(Class)
             Tuersteher::TLogger.logger.debug(
               "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model}, permission=#{permission}) =>  #{access || 'denied'} #{rule}")
@@ -267,7 +267,7 @@ module Tuersteher
       req_method = request.method.downcase.to_sym
       url_path = request.send(@@url_path_method)
       unless path_access?(url_path, req_method)
-        usr_id = current_user.respond_to?(:id) ? current_user.id : current_user.object_id
+        usr_id = current_user && current_user.respond_to?(:id) ? current_user.id : current_user.object_id
         msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method} user.id=#{usr_id}"
         Tuersteher::TLogger.logger.warn msg
         logger.warn msg  # log message also for Rails-Default logger

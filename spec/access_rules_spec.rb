@@ -70,6 +70,18 @@ module Tuersteher
           AccessRules.path_access?(@user, '/admin', :post).should_not be_true
         end
       end
+
+
+      context "without user" do
+        it "should be true for this paths" do
+          AccessRules.path_access?(nil, '/', :get).should be_true
+        end
+
+        it "should not be true for this paths" do
+          AccessRules.path_access?(nil, '/xyz', :get).should_not be_true
+          AccessRules.path_access?(nil, '/admin', :post).should_not be_true
+        end
+      end
     end
 
 
@@ -129,7 +141,18 @@ module Tuersteher
           AccessRules.model_access?(@user, @model2, :create).should_not be_true
         end
       end
-    end
+
+      context "without user" do
+        it "should be true for this paths" do
+          AccessRules.model_access?(nil, @model1, :xyz).should be_true
+          AccessRules.model_access?(nil, @model2, :read).should be_true
+        end
+
+        it "should not be true for this paths" do
+          AccessRules.model_access?(nil, @model2, :update).should_not be_true
+        end
+      end
+    end # of context 'model_access?'
 
 
 

@@ -4,6 +4,22 @@ module Tuersteher
 
   describe ModelAccessRule do
 
+    context "grant without user" do
+      before do
+        @rule = ModelAccessRule.new(String).grant.permission(:all)
+      end
+
+      it "should fired without user" do
+        @rule.fired?("test", :read, nil).should be_true
+      end
+
+      it "should fired with user" do
+        @user = stub('user')
+        @rule.fired?("test", :read, @user).should be_true
+      end
+    end
+
+
     context "grant with roles" do
 
       before(:all) do
