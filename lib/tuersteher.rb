@@ -130,66 +130,67 @@ module Tuersteher
 
 
   class AccessRules
-
-    # Pruefen Zugriff fuer eine Web-action
-    # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
-    # path        Pfad der Webresource (String)
-    # method      http-Methode (:get, :put, :delete, :post), default ist :get
-    #
-    def self.path_access?(user, path, method = :get)
-      rule = AccessRulesStorage.instance.path_rules.detect do |r|
-        r.fired?(path, method, user)
-      end
-      if Tuersteher::TLogger.logger.debug?
-        if rule.nil?
-          s = 'denied'
-        elsif rule.deny?
-          s = "denied with #{rule}"
-        else
-          s = "granted with #{rule}"
+    class << self
+      # Pruefen Zugriff fuer eine Web-action
+      # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
+      # path        Pfad der Webresource (String)
+      # method      http-Methode (:get, :put, :delete, :post), default ist :get
+      #
+      def path_access?(user, path, method = :get)
+        rule = AccessRulesStorage.instance.path_rules.detect do |r|
+          r.fired?(path, method, user)
         end
-        usr_id = user.respond_to?(:id) ? user.id : user.object_id
-        Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(user.id=#{usr_id}, path=#{path}, method=#{method})  =>  #{s}")
-      end
-      !(rule.nil? || rule.deny?)
-    end
-
-
-    # Pruefen Zugriff auf ein Model-Object
-    #
-    # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
-    # model       das Model-Object
-    # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
-    #
-    # liefert true/false
-    def self.model_access? user, model, permission
-      raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
-      return false unless model
-
-      rule = AccessRulesStorage.instance.model_rules.detect do |rule|
-        rule.fired? model, permission, user
-      end
-      access = rule && !rule.deny?
-      if Tuersteher::TLogger.logger.debug?
-        usr_id = user.respond_to?(:id) ? user.id : user.object_id
-        if model.instance_of?(Class)
-          Tuersteher::TLogger.logger.debug(
-            "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model}, permission=#{permission}) =>  #{access || 'denied'} #{rule}")
-        else
-          Tuersteher::TLogger.logger.debug(
-            "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), permission=#{permission}) =>  #{access || 'denied'} #{rule}")
+        if Tuersteher::TLogger.logger.debug?
+          if rule.nil?
+            s = 'denied'
+          elsif rule.deny?
+            s = "denied with #{rule}"
+          else
+            s = "granted with #{rule}"
+          end
+          usr_id = user.respond_to?(:id) ? user.id : user.object_id
+          Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(user.id=#{usr_id}, path=#{path}, method=#{method})  =>  #{s}")
         end
+        !(rule.nil? || rule.deny?)
       end
-      access
-    end
 
-    # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
-    # wo der angegebene User nicht das angegebene Recht hat
-    #
-    # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-    def self.purge_collection user, collection, permission
-      collection.select{|model| model_access?(user, model, permission)}
-    end
+
+      # Pruefen Zugriff auf ein Model-Object
+      #
+      # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
+      # model       das Model-Object
+      # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
+      #
+      # liefert true/false
+      def model_access? user, model, permission
+        raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
+        return false unless model
+
+        rule = AccessRulesStorage.instance.model_rules.detect do |rule|
+          rule.fired? model, permission, user
+        end
+        access = rule && !rule.deny?
+        if Tuersteher::TLogger.logger.debug?
+          usr_id = user.respond_to?(:id) ? user.id : user.object_id
+          if model.instance_of?(Class)
+            Tuersteher::TLogger.logger.debug(
+              "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model}, permission=#{permission}) =>  #{access || 'denied'} #{rule}")
+          else
+            Tuersteher::TLogger.logger.debug(
+              "Tuersteher: model_access?(user.id=#{usr_id}, model=#{model.class}(#{model.respond_to?(:id) ? model.id : model.object_id }), permission=#{permission}) =>  #{access || 'denied'} #{rule}")
+          end
+        end
+        access
+      end
+
+      # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
+      # wo der angegebene User nicht das angegebene Recht hat
+      #
+      # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+      def purge_collection user, collection, permission
+        collection.select{|model| model_access?(user, model, permission)}
+      end
+    end # of Class-Methods
   end # of AccessRules
 
 
@@ -236,7 +237,7 @@ module Tuersteher
     # wo der akt. User nicht das angegebene Recht hat
     #
     # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-    def self.purge_collection collection, permission
+    def purge_collection collection, permission
       AccessRules.purge_collection(current_user, collection, permission)
     end
 
@@ -280,10 +281,7 @@ module Tuersteher
 
   # Module for include in Model-Object-Classes
   #
-  # Der Loginuser muss fuer die hier benoetigte Funktionalitaet
-  # die Methode:
-  #   has_role?(role)  # role the Name of the Role as Symbol
-  # besitzen.
+  # The module get the current-user from Thread.current[:user]
   #
   # Sample for ActiveRecord-Class
   #   class Sample < ActiveRecord::Base
@@ -297,31 +295,34 @@ module Tuersteher
   #
   module ModelExtensions
 
-    # Pruefen Zugriff auf ein Model-Object
+    # Check permission for the Model-Object
     #
-    # model       das Model-Object
-    # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
+    # permission  the requested permission (sample :create, :update, :destroy, :get)
     #
-    # liefert true/false
-    def check_model_access permission
-      unless AccessRules.model_access? read_current_user_from_thread, self, permission
+    # raise a SecurityError-Exception if access denied
+    def check_access permission
+      user = Thread.current[:user]
+      unless AccessRules.model_access? user, self, permission
         raise SecurityError, "Access denied! Current user have no permission '#{permission}' on Model-Object #{self}."
       end
     end
 
-    # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
-    # wo der akt. User nicht das angegebene Recht hat
-    #
-    # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-    def purge_collection collection, permission
-      AccessRules.purge_collection(read_current_user_from_thread, collection, permission)
+    def self.included(base)
+      base.extend ClassMethods
     end
 
-    private
+    module ClassMethods
 
-    def read_current_user_from_thread
-      Thread.current[:user]
-    end
+      # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
+      # wo der akt. User nicht das angegebene Recht hat
+      #
+      # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+      def purge_collection collection, permission
+        user = Thread.current[:user]
+        AccessRules.purge_collection(user, collection, permission)
+      end
+    end # of ClassMethods
+
   end # of module ModelExtensions
 
 
@@ -564,6 +565,5 @@ module Tuersteher
     end
 
   end
-
 
 end
