@@ -92,11 +92,11 @@ module Tuersteher
 
       before do
         rules = [
-          ModelAccessRule.new(SampleModel1).grant.permission(:all),
-          ModelAccessRule.new(SampleModel2).grant.permission(:read),
-          ModelAccessRule.new(SampleModel2).grant.permission(:update).role(:user).extension(:owner?),
-          ModelAccessRule.new(SampleModel2).deny.permission(:create),
-          ModelAccessRule.new(SampleModel2).grant.permission(:all).role(:admin),
+          ModelAccessRule.new(SampleModel1).grant.method(:all),
+          ModelAccessRule.new(SampleModel2).grant.method(:read),
+          ModelAccessRule.new(SampleModel2).grant.method(:update).role(:user).extension(:owner?),
+          ModelAccessRule.new(SampleModel2).deny.method(:create),
+          ModelAccessRule.new(SampleModel2).grant.method(:all).role(:admin),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
         @user = stub('user')
@@ -143,12 +143,12 @@ module Tuersteher
       end
 
       context "without user" do
-        it "should be true for this paths" do
+        it "should be true for this models" do
           AccessRules.model_access?(nil, @model1, :xyz).should be_true
           AccessRules.model_access?(nil, @model2, :read).should be_true
         end
 
-        it "should not be true for this paths" do
+        it "should not be true for this models" do
           AccessRules.model_access?(nil, @model2, :update).should_not be_true
         end
       end
@@ -164,8 +164,8 @@ module Tuersteher
 
       before do
         rules = [
-          ModelAccessRule.new(SampleModel).permission(:update).role(:admin),
-          ModelAccessRule.new(SampleModel).permission(:update).role(:user).extension(:owner?),
+          ModelAccessRule.new(SampleModel).method(:update).role(:admin),
+          ModelAccessRule.new(SampleModel).method(:update).role(:user).extension(:owner?),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
         @user = stub('user')

@@ -13,12 +13,16 @@ module Tuersteher
 path('/').grant.method(:get)
 path(:all).grant.role(:ADMIN)
 path('/special').grant.extension(:special?, :area1)
+path('/pictures') do
+  grant.role(:admin)
+  deny.role(:guest)
+end
 
-model(Dashboard).grant.permission(:view)
+model(Dashboard).grant.method(:view)
 model(Todo) do
-  grant.permission(:view)
-  grant.permission(:full_view).role(:ADMIN)
-  grant.permission(:update).role(:EDITOR).extension(:owned_by?) # calls Todo.owned_by?(current_user)
+  grant.method(:view)
+  grant.method(:full_view).role(:ADMIN)
+  grant.method(:update).role(:EDITOR).extension(:owned_by?) # calls Todo.owned_by?(current_user)
 end
         EOR
         AccessRulesStorage.instance.eval_rules rule_defs
@@ -26,11 +30,11 @@ end
         @model_rules = AccessRulesStorage.instance.model_rules
       end
 
-      it "should have 3 path-rules" do
-        @path_rules.should have(3).items
+      specify do
+        @path_rules.should have(5).items
       end
 
-      it "should have 4 model-rules" do
+      specify do
         @model_rules.should have(4).items
       end
 

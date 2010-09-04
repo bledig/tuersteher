@@ -11,7 +11,7 @@ class ApplicationController  < ActionController::Base
   # This is here a dummy Stub-Implementation
   def current_user
     user = Object.new
-    def user.has_role?(*roles)
+    def user.has_role?(role)
       true
     end
     user

@@ -30,6 +30,7 @@ module Tuersteher
     end
   end
 
+
   class AccessRulesStorage
     include Singleton
 
@@ -89,9 +90,17 @@ module Tuersteher
     # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
     #                  wird als RegEX-Ausdruck ausgewertet
     def path url_path
-      rule = PathAccessRule.new(url_path)
-      @path_rules << rule
-      rule
+      if block_given?
+        @current_rule_class = PathAccessRule
+        @current_rule_init = url_path
+        @current_rule_storage = @path_rules
+        yield
+        @current_rule_class = @current_rule_init = nil
+      else
+        rule = PathAccessRule.new(url_path)
+        @path_rules << rule
+        rule
+      end
     end
 
     
@@ -100,9 +109,11 @@ module Tuersteher
     # model_class:  Model-Klassenname oder :all fuer alle
     def model model_class
       if block_given?
-        @current_model_class = model_class
+        @current_rule_class = ModelAccessRule
+        @current_rule_init = model_class
+        @current_rule_storage = @model_rules
         yield
-        @current_model_class = nil
+        @current_rule_class = @current_rule_init = @current_rule_storage = nil
       else
         rule = ModelAccessRule.new(model_class)
         @model_rules << rule
@@ -113,16 +124,15 @@ module Tuersteher
     # create new rule as grant-rule
     # and add this to the model_rules array
     def grant
-      rule = ModelAccessRule.new(@current_model_class)
-      @model_rules << rule
+      rule = @current_rule_class.new(@current_rule_init)
+      @current_rule_storage << rule
       rule.grant
     end
 
     # create new rule as deny-rule
     # and add this to the model_rules array
     def deny
-      rule = ModelAccessRule.new(@current_model_class)
-      @model_rules << rule
+      rule = grant
       rule.deny
     end
 
@@ -332,6 +342,7 @@ module Tuersteher
 
     def initialize
       @roles = []
+      @access_method = :all
     end
 
     # add role
@@ -367,6 +378,13 @@ module Tuersteher
       @deny
     end
 
+    # set methode for access
+    # access_method        Name of Methode for access as Symbol
+    def method(access_method)
+      @access_method = access_method
+      self
+    end
+
     # negate role-membership
     def not
       @not = true
@@ -385,13 +403,17 @@ module Tuersteher
       false
     end
 
+    def grant_access_method? method
+      return true if @access_method==:all
+      @access_method == method
+    end
+
   end # of BaseAccessRule
 
 
   class PathAccessRule < BaseAccessRule
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
-
 
     # Zugriffsregel
     #
@@ -411,14 +433,13 @@ module Tuersteher
           @path = /^#{path}/
         end
       end
-      @http_method = :all
     end
 
     # set http-methode
     # http_method        http-Method, allowed is :get, :put, :delete, :post, :all
     def method(http_method)
       raise "wrong method '#{http_method}'! Must be #{METHOD_NAMES.join(', ')} !" unless METHOD_NAMES.include?(http_method)
-      @http_method = http_method
+      super
       self
     end
 
@@ -438,10 +459,7 @@ module Tuersteher
         return false
       end
 
-      if @http_method!=:all && @http_method != method
-        return false
-      end
-
+      return false unless grant_access_method?(method)
       return false unless grant_role?(user)
       return false unless grant_extension?(user)
 
@@ -450,7 +468,7 @@ module Tuersteher
 
 
     def to_s
-      s = "PathAccesRule[#{@deny ? 'DENY ' : ''}#{@path}, #{@http_method}, #{@roles.join(' ')}"
+      s = "PathAccesRule[#{@deny ? 'DENY ' : ''}#{@path}, #{@access_method}, #{@roles.join(' ')}"
       s << " #{@check_extensions.inspect}" if @check_extensions
       s << ']'
       s
@@ -501,11 +519,6 @@ module Tuersteher
       @clazz = clazz.instance_of?(Symbol) ? clazz : clazz.to_s
     end
 
-    # set the permission-name
-    def permission permission_name
-      @permission = permission_name
-      self
-    end
 
     # liefert true, wenn zugriff fuer das angegebene model mit
     # der Zugriffsart perm für das security_object hat
@@ -518,7 +531,7 @@ module Tuersteher
     # *roles ist dabei eine Array aus Symbolen
     #
     #
-    def fired? model, perm, user
+    def fired? model, access_method, user
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
       m_class = model.instance_of?(Class) ? model : model.class
       if @clazz!=m_class.to_s && @clazz!=:all
@@ -526,18 +539,14 @@ module Tuersteher
         return false
       end
 
-      if @permission!=:all && @permission!=perm
-        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@access_type}!=:all && #{@access_type}!=#{perm}")
-        return false
-      end
-
+      return false unless grant_access_method?(access_method)
       return false unless grant_role?(user)
       return false unless grant_extension?(user, model)
       true
     end
 
     def to_s
-      s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@permission}, #{@roles.join(' ')}"
+      s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@access_method}, #{@roles.join(' ')}"
       s << " #{@check_extensions.inspect}" if @check_extensions
       s << ']'
       s

@@ -6,7 +6,7 @@ module Tuersteher
 
     context "grant without user" do
       before do
-        @rule = ModelAccessRule.new(String).grant.permission(:all)
+        @rule = ModelAccessRule.new(String).grant.method(:all)
       end
 
       it "should fired without user" do
@@ -23,7 +23,7 @@ module Tuersteher
     context "grant with roles" do
 
       before(:all) do
-        @rule = ModelAccessRule.new(String).grant.permission(:read).role(:sysadmin).role(:admin)
+        @rule = ModelAccessRule.new(String).grant.method(:read).role(:sysadmin).role(:admin)
       end
 
       context "for User with role :admin" do
@@ -40,7 +40,7 @@ module Tuersteher
           @rule.fired?(12345, :read, @user).should_not be_true
         end
 
-        it "should not be fired for String-Object and other access-type as :read" do
+        it "should not be fired for String-Object and other access-method as :read" do
           @rule.fired?("test", :delete, @user).should_not be_true
         end
       end
@@ -60,7 +60,7 @@ module Tuersteher
 
     context "deny with not.role" do
       before(:all) do
-        @rule = ModelAccessRule.new(String).deny.permission(:append).not.role(:admin)
+        @rule = ModelAccessRule.new(String).deny.method(:append).not.role(:admin)
         @user = stub('user')
       end
 
