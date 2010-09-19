@@ -92,6 +92,7 @@ module Tuersteher
 
       before do
         rules = [
+          ModelAccessRule.new(:all).grant.role(:sysadmin),
           ModelAccessRule.new(SampleModel1).grant.method(:all),
           ModelAccessRule.new(SampleModel2).grant.method(:read),
           ModelAccessRule.new(SampleModel2).grant.method(:update).role(:user).extension(:owner?),
@@ -141,6 +142,23 @@ module Tuersteher
           AccessRules.model_access?(@user, @model2, :create).should_not be_true
         end
       end
+
+
+      context "User with role :sysadmin" do
+        before do
+          @user.stub(:has_role?){|role| role==:sysadmin}
+        end
+
+        it "should be true for this" do
+          AccessRules.model_access?(@user, "test", :xyz).should be_true
+          AccessRules.model_access?(@user, @model1, :xyz).should be_true
+          AccessRules.model_access?(@user, @model2, :read).should be_true
+          AccessRules.model_access?(@user, @model2, :update).should be_true
+          AccessRules.model_access?(@user, @model2, :delete).should be_true
+          AccessRules.model_access?(@user, @model2, :create).should be_true
+        end
+      end
+
 
       context "without user" do
         it "should be true for this models" do

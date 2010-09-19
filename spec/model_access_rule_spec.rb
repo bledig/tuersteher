@@ -55,6 +55,23 @@ module Tuersteher
           @rule.fired?("test", :read, @user).should_not be_true
         end
       end
+
+      context "for :all Model-Instances" do
+        before do
+          @rule_all = ModelAccessRule.new(:all).grant.role(:admin)
+          @user = stub('user')
+        end
+
+        it "should fired for user with role :admin" do
+          @user.stub(:has_role?) { |role| role==:admin }
+          @rule_all.fired?("test", :xyz, @user).should be_true
+        end
+
+        it "should fired for user with role :admin" do
+          @user.stub(:has_role?).and_return(false)
+          @rule_all.fired?("test", :xyz, @user).should_not be_true
+        end
+      end
     end # of context "grant with roles"
 
 
