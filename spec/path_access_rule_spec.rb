@@ -162,6 +162,25 @@ module Tuersteher
         @rule.fired?("/admin", :get, @user).should be_true
       end
     end # of context "not" do
-    
+
+
+    context "add multiple roles" do
+      before(:all) do
+        @rule = PathAccessRule.new('/admin').roles(:admin1, :admin2).roles([:s1, :s2])
+        @user = stub('user')
+      end
+
+      it "should fired for user with role which specified in the rule" do
+        [:admin1, :admin2, :s1, :s2].each do |role_name|
+          @user.stub(:has_role?){|role| role==role_name}
+          @rule.fired?("/admin", :get, @user).should be_true
+        end
+      end
+
+      it "should not fired for user with role :user" do
+        @user.stub(:has_role?){|role| role==:user}
+        @rule.fired?("/admin", :get, @user).should_not be_true
+      end
+    end
   end
 end

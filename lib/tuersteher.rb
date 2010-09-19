@@ -352,6 +352,12 @@ module Tuersteher
       self
     end
 
+    # add list of roles
+    def roles(*role_names)
+      role_names.flatten.each{|role_name| role(role_name)}
+      self
+    end
+
     # add extension-definition
     # parmaters:
     #   method_name:      Symbol with the name of the method to call for addional check
