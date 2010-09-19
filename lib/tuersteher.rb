@@ -61,7 +61,7 @@ module Tuersteher
     def eval_rules rules_definitions
       @path_rules = []
       @model_rules = []
-      eval rules_definitions
+      eval rules_definitions, binding, (@rules_config_file||'no file')
       @was_read = true
       Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
     end
@@ -274,7 +274,8 @@ module Tuersteher
       # bind current_user on the current thread
       Thread.current[:user] = current_user
 
-      req_method = request.method.downcase.to_sym
+      req_method = request.method
+      req_method = req_method.downcase.to_sym if req_method.is_a?(String)
       url_path = request.send(@@url_path_method)
       unless path_access?(url_path, req_method)
         usr_id = current_user && current_user.respond_to?(:id) ? current_user.id : current_user.object_id
