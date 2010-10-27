@@ -83,13 +83,17 @@ module Tuersteher
 
       context "Rule with no role spezifed => now role needed" do
         before(:all) do
-          @rule = PathAccessRule.new('/admin').method(:get)
+          @rule = PathAccessRule.new('/public').method(:get)
           @user = stub('user')
           @user.stub(:has_role?).and_return(false)
         end
 
         it "should fired for user with no roles" do
-          @rule.fired?("/admin/xyz", :get, @user).should be_true
+          @rule.fired?("/public/xyz", :get, @user).should be_true
+        end
+
+        it "should fired for non user" do
+          @rule.fired?("/public/xyz", :get, nil).should be_true
         end
 
         it "should not be fired with other path" do
