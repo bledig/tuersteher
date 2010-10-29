@@ -38,6 +38,10 @@ end
         @model_rules.should have(4).items
       end
 
+      specify do
+        AccessRules.path_access?(nil, '/')
+      end
+
     end # of context "eval_rules"
 
   end # of describe AccessRulesStorage
