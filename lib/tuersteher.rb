@@ -136,11 +136,24 @@ module Tuersteher
       rule.deny
     end
 
+    # Erweitern des Path um einen Prefix
+    # Ist notwenig wenn z.B. die Rails-Anwendung nicht als root-Anwendung läuft
+    # also root_path != '/' ist.'
+    def extend_path_rules_with_prefix prefix
+      Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
+      @path_prefix = prefix
+      path_rules.each do |rule|
+        rule.path = "#{prefix}#{rule.path}" unless rule.path == :all
+      end
+    end
+
+
   end # of AccessRulesStorage
 
 
   class AccessRules
     class << self
+
       # Pruefen Zugriff fuer eine Web-action
       # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
       # path        Pfad der Webresource (String)
@@ -223,6 +236,7 @@ module Tuersteher
   module ControllerExtensions
 
     @@url_path_method = nil
+    @@prefix_checked = nil
 
     # Pruefen Zugriff fuer eine Web-action
     #
@@ -230,6 +244,14 @@ module Tuersteher
     # method      http-Methode (:get, :put, :delete, :post), default ist :get
     #
     def path_access?(path, method = :get)
+      unless @@prefix_checked
+        @@prefix_checked = true
+        prefix = respond_to?(:root_path) && root_path
+        if prefix.size > 1
+          AccessRulesStorage.instance.extend_path_rules_with_prefix(prefix)
+          Rails.logger.info "Tuersteher::ControllerExtensions: set path-prefix to: #{prefix}"
+        end
+      end
       AccessRules.path_access? current_user, path, method
     end
 
@@ -421,6 +443,7 @@ module Tuersteher
   class PathAccessRule < BaseAccessRule
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
+    attr_reader :path
 
     # Zugriffsregel
     #
@@ -429,15 +452,19 @@ module Tuersteher
     def initialize(path)
       raise "wrong path '#{path}'! Must be a String or :all ." unless path==:all or path.is_a?(String)
       super()
-      @path = path
-      if path != :all
+      self.path = path
+    end
+
+    def path= url_path
+      @path = url_path
+      if url_path != :all
         # path in regex ^#{path} wandeln ausser bei "/",
         # dies darf keine Regex mit ^/ werden,
         # da diese ja immer matchen wuerde
-        if path == "/"
-          @path = /^\/$/
+        if url_path == "/"
+          @path_regex = /^\/$/
         else
-          @path = /^#{path}/
+          @path_regex = /^#{url_path}/
         end
       end
     end
@@ -462,7 +489,7 @@ module Tuersteher
     def fired?(path, method, user)
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
 
-      if @path!=:all && !(@path =~ path)
+      if @path!=:all && !(@path_regex =~ path)
         return false
       end
 

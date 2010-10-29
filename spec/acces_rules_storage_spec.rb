@@ -44,5 +44,25 @@ end
 
     end # of context "eval_rules"
 
+
+
+    context "extend path with prefix" do
+      context "eval_rules" do
+        before(:all) do
+          rule_defs = <<-EOR
+  path(:all).grant.role(:ADMIN)
+  path('/special').grant.role(:SPECIAL)
+          EOR
+          AccessRulesStorage.instance.eval_rules rule_defs
+          AccessRulesStorage.instance.extend_path_rules_with_prefix('/test')
+          @path_rules = AccessRulesStorage.instance.path_rules
+        end
+
+        specify{ @path_rules.first.path.should == :all }
+        specify{ @path_rules.last.path.should == '/test/special' }
+
+      end
+    end
+
   end # of describe AccessRulesStorage
 end
