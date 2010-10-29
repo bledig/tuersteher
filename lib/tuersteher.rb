@@ -248,6 +248,7 @@ module Tuersteher
         @@prefix_checked = true
         prefix = respond_to?(:root_path) && root_path
         if prefix.size > 1
+          prefix.chomp!('/') # des abschliessende / entfernen
           AccessRulesStorage.instance.extend_path_rules_with_prefix(prefix)
           Rails.logger.info "Tuersteher::ControllerExtensions: set path-prefix to: #{prefix}"
         end
