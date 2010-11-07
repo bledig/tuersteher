@@ -593,10 +593,10 @@ module Tuersteher
     def grant_extension? user, model
       return true if @check_extensions.nil?
       return false if model.nil?  # check_extensions need a model
-      return false if model.instance_of?(Class) # no Extension-Call if model is a Class-Instance
       @check_extensions.each do |key, value|
         unless model.respond_to?(key)
-          Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why model-onject have not check-extension method '#{key}'!")
+          m_msg = model.instance_of?(Class) ? "Class '#{model.name}'" : "Object '#{model.class}'"
+          Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why #{m_msg} have not check-extension method '#{key}'!")
           return false
         end
         if value
