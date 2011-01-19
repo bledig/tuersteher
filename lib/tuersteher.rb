@@ -302,7 +302,7 @@ module Tuersteher
       url_path = request.send(@@url_path_method)
       unless path_access?(url_path, req_method)
         usr_id = current_user && current_user.respond_to?(:id) ? current_user.id : current_user.object_id
-        msg = "Tuersteher#check_access: access denied for #{request.request_uri} :#{req_method} user.id=#{usr_id}"
+        msg = "Tuersteher#check_access: access denied for #{url_path} :#{req_method} user.id=#{usr_id}"
         Tuersteher::TLogger.logger.warn msg
         logger.warn msg  # log message also for Rails-Default logger
         access_denied  # Methode aus dem authenticated_system, welche ein redirect zum login auslöst
