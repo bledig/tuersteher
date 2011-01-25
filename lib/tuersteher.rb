@@ -182,15 +182,16 @@ module Tuersteher
       #
       # user        User, für den der Zugriff geprüft werden soll (muss Methode has_role? haben)
       # model       das Model-Object
-      # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
+      # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get) 
+      # environment beliebige Argumente, die an eine mögliche RuleExtension weitergegeben werden können
       #
       # liefert true/false
-      def model_access? user, model, permission
+      def model_access? user, model, permission, *environment
         raise "Wrong call! Use: model_access(model-instance-or-class, permission)" unless permission.is_a? Symbol
         return false unless model
 
         rule = AccessRulesStorage.instance.model_rules.detect do |rule|
-          rule.fired? model, permission, user
+          rule.fired? model, permission, user, environment
         end
         access = rule && !rule.deny?
         if Tuersteher::TLogger.logger.debug?
@@ -210,6 +211,7 @@ module Tuersteher
       # wo der angegebene User nicht das angegebene Recht hat
       #
       # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
+      # TODO erweitern um die Möglichkeit der environment
       def purge_collection user, collection, permission
         collection.select{|model| model_access?(user, model, permission)}
       end
@@ -262,8 +264,8 @@ module Tuersteher
     # permission  das geforderte Zugriffsrecht (:create, :update, :destroy, :get)
     #
     # liefert true/false
-    def model_access? model, permission
-      AccessRules.model_access? current_user, model, permission
+    def model_access? model, permission, *environment
+      AccessRules.model_access? current_user, model, permission, environment
     end
 
     # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
@@ -334,9 +336,9 @@ module Tuersteher
     # permission  the requested permission (sample :create, :update, :destroy, :get)
     #
     # raise a SecurityError-Exception if access denied
-    def check_access permission
+    def check_access permission, *environment
       user = Thread.current[:user]
-      unless AccessRules.model_access? user, self, permission
+      unless AccessRules.model_access? user, self, permission, environment
         raise SecurityError, "Access denied! Current user have no permission '#{permission}' on Model-Object #{self}."
       end
     end
@@ -366,7 +368,7 @@ module Tuersteher
 
     def initialize
       @roles = []
-      @access_method = :all
+      @access_methods = []
     end
 
     # add role
@@ -411,7 +413,12 @@ module Tuersteher
     # set methode for access
     # access_method        Name of Methode for access as Symbol
     def method(access_method)
-      @access_method = access_method
+      @access_methods << access_method
+      self
+    end
+    
+    def methods(*access_methods)
+      access_methods.flatten.each{|access_method| method(access_method)}
       self
     end
 
@@ -434,8 +441,8 @@ module Tuersteher
     end
 
     def grant_access_method? method
-      return true if @access_method==:all
-      @access_method == method
+      return true if @access_methods.empty? || @access_methods.include?(:all) 
+      @access_methods.include?(method)
     end
 
   end # of BaseAccessRule
@@ -541,19 +548,36 @@ module Tuersteher
     # access_type   Zugriffsart (:create, :update, :destroy, :all o.A. selbst definierte Typem)
     # roles         Aufzählung der erforderliche Rolen (:all für ist egal),
     #               hier ist auch ein Array von Symbolen möglich
-    # block         optionaler Block, wird mit model und user aufgerufen und muss true oder false liefern
-    #               hier ein Beispiel mit Block:
-    #               <code>
-    #                 # Regel, in der sich jeder User selbst aendern darf
-    #                 ModelAccessRule.new(User, :update, :all){|model,user| model.id==user.id}
-    #               </code>
     #
     def initialize(clazz)
       raise "wrong clazz '#{clazz}'! Must be a Class or :all ." unless clazz==:all or clazz.is_a?(Class)
+      @check_extensions = []
+      @user_extensions = []
       super()
       @clazz = clazz.instance_of?(Symbol) ? clazz : clazz.to_s
+    end 
+    
+    #Overwrites the basemethod and uses RuleExtensionModel the new option can also be the old value
+    def extension method_name, options = {}
+      @check_extensions << RuleExtensionModel.new(method_name, options)
+      self
+    end  
+    
+    # add user-extension-definition
+    # 
+    # a user extension is called on the current_user. Optional the calling model, an fixed arg or a passthrough of external args can be given
+    # 
+    # parameters:
+    #   method_name: Symbol with the name of the method to call for addional check on the current_user
+    #   options:     hash of options
+    # =>  :value     => specifies the result value, defaults to true
+    # =>  :object    => if true, it will pass the model of the rule to the extension method, defaults to false
+    # =>  :args      => an Array of args, which's elements are passed as arguments to the specified extension_method
+    # =>  :pass_args => if true passes all additional args to the extension_method, defaults to false
+    def user_extension method_name, options = {}
+      @user_extensions << RuleExtensionUser.new(method_name, options)
+      self
     end
-
 
     # liefert true, wenn zugriff fuer das angegebene model mit
     # der Zugriffsart perm für das security_object hat
@@ -566,48 +590,178 @@ module Tuersteher
     # *roles ist dabei eine Array aus Symbolen
     #
     #
-    def fired? model, access_method, user
+    def fired? model, access_method, user, environment
       user = nil if user==:false # manche Authenticate-System setzen den user auf :false
-      m_class = model.instance_of?(Class) ? model : model.class
-      if @clazz!=m_class.to_s && @clazz!=:all
-        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")
-        return false
-      end
-
+      return false unless grant_model?(model)
       return false unless grant_access_method?(access_method)
       return false unless grant_role?(user)
-      return false unless grant_extension?(user, model)
+      return false unless grant_extension?(user, model, environment, @check_extensions + @user_extensions)
       true
     end
 
     def to_s
-      s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@access_method}, #{@roles.join(' ')}"
-      s << " #{@check_extensions.inspect}" if @check_extensions
+      s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@access_methods.join(' ')}, #{@roles.join(' ')}"
+      s << " #{@check_extensions.inspect}" unless @check_extensions.blank?
+      s << " #{@user_extensions.inspect}" unless @user_extensions.blank?
       s << ']'
       s
     end
-
-    private
-
-    # check, if this rule grant the defined extension (if exist)
-    def grant_extension? user, model
-      return true if @check_extensions.nil?
-      return false if model.nil?  # check_extensions need a model
-      @check_extensions.each do |key, value|
-        unless model.respond_to?(key)
-          m_msg = model.instance_of?(Class) ? "Class '#{model.name}'" : "Object '#{model.class}'"
-          Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why #{m_msg} have not check-extension method '#{key}'!")
-          return false
-        end
-        if value
-          return false unless model.send(key,user,value)
-        else
-          return false unless model.send(key,user)
-        end
-      end
-      true
+    
+    def log_for_no_method object_name, method_name
+      Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false because #{object_name} hase not check-extension method '#{method_name}'!")
+    end  
+    
+    def log_for_wrong_number_of_argumets object_name, method_name, e
+      Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false because '#{object_name}.#{method_name}' was called with wrong number of arguments: #{e.message}!")
     end
 
+    private
+    
+    #checks if the given model is matching the model of this rule
+    def grant_model? model
+      m_class = model.instance_of?(Class) ? model : model.class
+      @clazz==m_class.to_s || @clazz==:all #clazz is the given class or :all
+      #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all") 
+    end
+
+    # checks if every user_extensions is ok if any given 
+    def grant_extension? user, model, environment, extensions
+      return true if extensions.empty?
+      extensions.all? do |extension| 
+        extension.grant? user, model, environment, self
+      end
+    end
+
+  end
+  
+  class RuleExtensionBase
+     
+    def initialize method_name, options = {}
+      check_given_options options
+      @options = default_options.merge(options)
+      @method_name = method_name
+    end 
+    
+    def grant? user, model, environment, rule
+      return false unless object_responds_to_method?(used_object(user, model), rule)
+      begin
+        return used_object(user, model).send(*args_for_call(user, model, environment)) == value
+      rescue ArgumentError => e
+        rule.log_for_wrong_number_of_argumets(model_name(user, model), method_name, e)
+        return false
+      end
+    end
+    
+    attr_reader :method_name
+    
+    def object?
+      @options[:object]
+    end  
+    
+    def args_given?
+      !args.nil?
+    end
+    
+    def args
+      @options[:args]
+    end
+    
+    def pass_args?
+      @options[:pass_args]
+    end 
+        
+    def value
+      @options[:value]
+    end 
+    
+    def to_s
+      "RuleExtension #{model_name}, #{@options.inspec}" 
+    end
+    
+    private 
+    
+    #all allowed options for this extension
+    def allowed_options
+      [:value, :object, :args, :pass_args]
+    end
+       
+    #default options for this extension
+    def default_options
+      {:value => true, :object => false, :args => nil, :pass_args => false}
+    end 
+             
+    #checks if all options are allowed for this extension
+    def check_given_options options
+      unless (unknown_keys = options.keys.select { |option_key| !allowed_options.include?(option_key) }).empty?
+        raise "option #{ unknown_keys.join(", ") } not known"
+      end
+    end
+        
+    #tests if the extension object reponds to the given method_name and logs otherwise the problem
+    def object_responds_to_method? my_object, rule
+      if my_object.respond_to?(method_name)
+        return true
+      else
+        rule.log_for_no_method(model_name, method_name)
+        return false
+      end
+    end
+        
+    #returns the arg for the method call on the extension object
+    def args_for_call user, model, environment
+      my_args = [method_name]
+      my_args.push(relation_object(user, model)) if object? 
+      my_args.push(*args) if args_given?
+      my_args.push(*environment) if pass_args?
+      my_args
+    end
+    
+  end   
+  
+  class RuleExtensionUser < RuleExtensionBase
+    
+    private 
+    
+    def used_object user, model
+      user
+    end 
+    
+    def relation_object(user, model)
+      model
+    end
+    
+    def model_name user, model
+      "current_user"
+    end
+   
+  end 
+  
+  class RuleExtensionModel < RuleExtensionBase 
+    
+    def initialize method_name, options = {}
+      my_options = options.is_a?(String) ? {:value => [options]} : options
+      super method_name, my_options
+    end
+    
+    private
+    
+    #default options for this extension
+    def default_options
+      {:value => true, :object => true, :args => nil, :pass_args => false}
+    end
+    
+    def used_object user, model
+      model
+    end
+     
+    def relation_object(user, model)
+      user
+    end
+    
+    def model_name user, model
+      model.instance_of?(Class) ? "Class '#{model.name}'" : "Object '#{model.class}'"
+    end
+   
   end
 
 end
