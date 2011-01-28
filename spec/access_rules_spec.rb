@@ -221,33 +221,65 @@ module Tuersteher
 
     context 'purge_collection' do
 
-      class SampleModel
-        def owner? user; false; end
+      context 'without params' do
+
+        class SampleModel
+          def owner? user; false; end
+        end
+
+        before do
+          rules = [
+            ModelAccessRule.new(SampleModel).method(:update).role(:admin),
+            ModelAccessRule.new(SampleModel).method(:update).role(:user).extension(:owner?),
+          ]
+          AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
+          @user = stub('user')
+          @model1 = SampleModel.new
+          @model2 = SampleModel.new
+          @model3 = SampleModel.new
+          @model3.stub(:owner?).and_return(true)
+          @collection = [@model1, @model2, @model3]
+        end
+
+        it "Should return [@model3] for user with role=:user" do
+          @user.stub(:has_role?){|role| role==:user}
+          AccessRules.purge_collection(@user, @collection, :update).should == [@model3]
+        end
+
+        it "Should return all for user with role=:admin" do
+          @user.stub(:has_role?){|role| role==:admin}
+          AccessRules.purge_collection(@user, @collection, :update).should == @collection
+        end
+
+      end #without params
+
+      context 'with args' do
+
+        class Lcc
+          def usable_in_view? view_name
+            !(view_name == :svr)
+          end
+        end
+
+        before do
+          rules = [
+            ModelAccessRule.new(Lcc).method(:use).extension(:usable_in_view?, :pass_args => true, :object => false)
+          ]
+          AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
+          @user = stub('user')
+          @model1 = Lcc.new
+          @model2 = Lcc.new
+          @model3 = Lcc.new
+          @collection = [ [@model1,[:seo_keywords]], [@model2,[:svr]], [@model3,[:sem_keywords]] ]
+        end
+
+        it "should return [@model1, @model3] for the user" do
+          result_collection = AccessRules.purge_collection(@user, @collection, :use, :with_args => true)
+          result_collection.should == [ [@model1,[:seo_keywords]], [@model3,[:sem_keywords]] ]
+        end
+
       end
 
-      before do
-        rules = [
-          ModelAccessRule.new(SampleModel).method(:update).role(:admin),
-          ModelAccessRule.new(SampleModel).method(:update).role(:user).extension(:owner?),
-        ]
-        AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
-        @user = stub('user')
-        @model1 = SampleModel.new
-        @model2 = SampleModel.new
-        @model3 = SampleModel.new
-        @model3.stub(:owner?).and_return(true)
-        @collection = [@model1, @model2, @model3]
-      end
-
-      it "Should return [@model3] for user with role=:user" do
-        @user.stub(:has_role?){|role| role==:user}
-        AccessRules.purge_collection(@user, @collection, :update).should == [@model3]
-      end
-
-      it "Should return all for user with role=:admin" do
-        @user.stub(:has_role?){|role| role==:admin}
-        AccessRules.purge_collection(@user, @collection, :update).should == @collection
-      end
     end
 
   end

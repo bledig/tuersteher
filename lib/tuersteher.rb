@@ -56,7 +56,6 @@ module Tuersteher
       @model_rules
     end
 
-
     # evaluated rules_definitions and create path-/model-rules
     def eval_rules rules_definitions
       @path_rules = []
@@ -210,12 +209,32 @@ module Tuersteher
       # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
       # wo der angegebene User nicht das angegebene Recht hat
       #
-      # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-      # TODO erweitern um die Möglichkeit der environment
-      def purge_collection user, collection, permission
-        collection.select{|model| model_access?(user, model, permission)}
-      end
+      # liefert ein neues Array mit den Objecten or arguments, wo der spez. Zugriff arlaubt ist
+      #
+      # If you want to test the object with special args, you have to give the collection as an array of arrays.
+      # It should have the following form => [ [model1, [args_for_model1]], [model2, [args_for_model2]], ... ]
+      # For that last case you have to give {:with_value => true} as env
+      def purge_collection user, collection, permission, *env
+        if collection.is_a?(Array) #the list is given as collection
+          if env.empty? #just a list of model-objects for testing
+            access_collection = collection.select { |model| model_access?(user, model, permission) }
+          elsif env.size == 1 && env.first.is_a?(Hash) && env.first[:with_args] #the list contains arrays like this [model, [*args]]
+            access_collection = collection.select do |model|
+              env = model.is_a?(Array) ? model.last : []
+              my_model = model.is_a?(Array) ? model.first : model
+              model_access?(user, my_model, permission, *env)
+            end 
+          else #env is given as the arg for a list models
+            access_collection = collection.select { |model| model_access?(user, model, permission, *env) }
+          end
+        else #single model and a list of args [[*args1], [*args2]]
+          return [] if env.empty? || env.size != 1 || !env.first.is_a?(Array)
+          env.first.select { |args| model_access?(user, collection, permission, *args) }
+        end
+      end #purge_collection
+
     end # of Class-Methods
+
   end # of AccessRules
 
 
@@ -265,15 +284,15 @@ module Tuersteher
     #
     # liefert true/false
     def model_access? model, permission, *environment
-      AccessRules.model_access? current_user, model, permission, environment
+      AccessRules.model_access? current_user, model, permission, *environment
     end
 
     # Bereinigen (entfernen) aller Objecte aus der angebenen Collection,
     # wo der akt. User nicht das angegebene Recht hat
     #
     # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-    def purge_collection collection, permission
-      AccessRules.purge_collection(current_user, collection, permission)
+    def purge_collection collection, permission, *environment
+      AccessRules.purge_collection(current_user, collection, permission, *environment)
     end
 
 
@@ -338,7 +357,7 @@ module Tuersteher
     # raise a SecurityError-Exception if access denied
     def check_access permission, *environment
       user = Thread.current[:user]
-      unless AccessRules.model_access? user, self, permission, environment
+      unless AccessRules.model_access? user, self, permission, *environment
         raise SecurityError, "Access denied! Current user have no permission '#{permission}' on Model-Object #{self}."
       end
     end
@@ -353,10 +372,11 @@ module Tuersteher
       # wo der akt. User nicht das angegebene Recht hat
       #
       # liefert ein neues Array mit den Objecten, wo der spez. Zugriff arlaubt ist
-      def purge_collection collection, permission
+      def purge_collection collection, permission, *env
         user = Thread.current[:user]
-        AccessRules.purge_collection(user, collection, permission)
+        AccessRules.purge_collection(user, collection, permission, *env)
       end
+        
     end # of ClassMethods
 
   end # of module ModelExtensions
@@ -441,7 +461,7 @@ module Tuersteher
     end
 
     def grant_access_method? method
-      return true if @access_methods.empty? || @access_methods.include?(:all) 
+      return true if @access_methods.empty? || @access_methods.include?(:all)
       @access_methods.include?(method)
     end
 
@@ -555,18 +575,18 @@ module Tuersteher
       @user_extensions = []
       super()
       @clazz = clazz.instance_of?(Symbol) ? clazz : clazz.to_s
-    end 
+    end
     
     #Overwrites the basemethod and uses RuleExtensionModel the new option can also be the old value
     def extension method_name, options = {}
       @check_extensions << RuleExtensionModel.new(method_name, options)
       self
-    end  
+    end
     
     # add user-extension-definition
-    # 
+    #
     # a user extension is called on the current_user. Optional the calling model, an fixed arg or a passthrough of external args can be given
-    # 
+    #
     # parameters:
     #   method_name: Symbol with the name of the method to call for addional check on the current_user
     #   options:     hash of options
@@ -599,20 +619,21 @@ module Tuersteher
       true
     end
 
-    def to_s
+    def to_s environment = nil
       s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@access_methods.join(' ')}, #{@roles.join(' ')}"
-      s << " #{@check_extensions.inspect}" unless @check_extensions.blank?
-      s << " #{@user_extensions.inspect}" unless @user_extensions.blank?
+      s << " #{@check_extensions.inspect}" unless @check_extensions.empty?
+      s << " #{@user_extensions.inspect}" unless @user_extensions.empty?
       s << ']'
+      s << " with environment: #{environment}" if environment
       s
     end
     
     def log_for_no_method object_name, method_name
       Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false because #{object_name} hase not check-extension method '#{method_name}'!")
-    end  
+    end
     
-    def log_for_wrong_number_of_argumets object_name, method_name, e
-      Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false because '#{object_name}.#{method_name}' was called with wrong number of arguments: #{e.message}!")
+    def log_for_wrong_number_of_arguments object_name, method_name, environment, e
+      Tuersteher::TLogger.logger.warn("#{to_s(environment)}.fired? => false because '#{object_name}.#{method_name}' was called with wrong number of arguments: #{e.message}!")
     end
 
     private
@@ -621,13 +642,13 @@ module Tuersteher
     def grant_model? model
       m_class = model.instance_of?(Class) ? model : model.class
       @clazz==m_class.to_s || @clazz==:all #clazz is the given class or :all
-      #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all") 
+      #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")
     end
 
-    # checks if every user_extensions is ok if any given 
+    # checks if every user_extensions is ok if any given
     def grant_extension? user, model, environment, extensions
       return true if extensions.empty?
-      extensions.all? do |extension| 
+      extensions.all? do |extension|
         extension.grant? user, model, environment, self
       end
     end
@@ -640,14 +661,14 @@ module Tuersteher
       check_given_options options
       @options = default_options.merge(options)
       @method_name = method_name
-    end 
+    end
     
     def grant? user, model, environment, rule
-      return false unless object_responds_to_method?(used_object(user, model), rule)
+      return false unless object_responds_to_method?(used_object(user, model), model_name(user,model), rule)
       begin
         return used_object(user, model).send(*args_for_call(user, model, environment)) == value
       rescue ArgumentError => e
-        rule.log_for_wrong_number_of_argumets(model_name(user, model), method_name, e)
+        rule.log_for_wrong_number_of_arguments(model_name(user, model), method_name, environment, e)
         return false
       end
     end
@@ -656,7 +677,7 @@ module Tuersteher
     
     def object?
       @options[:object]
-    end  
+    end
     
     def args_given?
       !args.nil?
@@ -668,17 +689,17 @@ module Tuersteher
     
     def pass_args?
       @options[:pass_args]
-    end 
+    end
         
     def value
       @options[:value]
-    end 
-    
-    def to_s
-      "RuleExtension #{model_name}, #{@options.inspec}" 
     end
     
-    private 
+    def to_s
+      "RuleExtension #{model_name}, #{@options.inspec}"
+    end
+    
+    private
     
     #all allowed options for this extension
     def allowed_options
@@ -688,7 +709,7 @@ module Tuersteher
     #default options for this extension
     def default_options
       {:value => true, :object => false, :args => nil, :pass_args => false}
-    end 
+    end
              
     #checks if all options are allowed for this extension
     def check_given_options options
@@ -698,11 +719,11 @@ module Tuersteher
     end
         
     #tests if the extension object reponds to the given method_name and logs otherwise the problem
-    def object_responds_to_method? my_object, rule
+    def object_responds_to_method? my_object, my_model_name, rule
       if my_object.respond_to?(method_name)
         return true
       else
-        rule.log_for_no_method(model_name, method_name)
+        rule.log_for_no_method(my_model_name, method_name)
         return false
       end
     end
@@ -710,21 +731,21 @@ module Tuersteher
     #returns the arg for the method call on the extension object
     def args_for_call user, model, environment
       my_args = [method_name]
-      my_args.push(relation_object(user, model)) if object? 
+      my_args.push(relation_object(user, model)) if object?
       my_args.push(*args) if args_given?
       my_args.push(*environment) if pass_args?
       my_args
     end
     
-  end   
+  end
   
   class RuleExtensionUser < RuleExtensionBase
     
-    private 
+    private
     
     def used_object user, model
       user
-    end 
+    end
     
     def relation_object(user, model)
       model
@@ -734,9 +755,9 @@ module Tuersteher
       "current_user"
     end
    
-  end 
+  end
   
-  class RuleExtensionModel < RuleExtensionBase 
+  class RuleExtensionModel < RuleExtensionBase
     
     def initialize method_name, options = {}
       my_options = options.is_a?(String) ? {:value => [options]} : options
