@@ -2,3 +2,5 @@ pkg
 .idea
 tuersteher*.gem
 nbproject
+Gemfile
+Gemfile.lock
