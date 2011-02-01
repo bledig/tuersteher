@@ -7,6 +7,7 @@
 #
 
 require 'singleton'
+require 'logger'
 
 module Tuersteher
 
@@ -143,7 +144,10 @@ module Tuersteher
       Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
       @path_prefix = prefix
       path_rules.each do |rule|
-        rule.path = "#{prefix}#{rule.path}" unless rule.path == :all
+        path_spec = rule.path_spezification
+        if path_spec
+          path_spec.path = "#{prefix}#{path_spec.path}"
+        end
       end
     end
 
@@ -360,25 +364,123 @@ module Tuersteher
   end # of module ModelExtensions
 
 
+  # The Classes for the separate Rule-Specifications
+  class PathSpecification
+    attr_reader :path
 
-  # Astracte base class for Access-Rules
+    def initialize path, negation
+      @negation = negation
+      self.path = path
+    end
+
+    def path= url_path
+      @path = url_path
+      # url_path in regex ^#{path} wandeln ausser bei "/",
+      # dies darf keine Regex mit ^/ werden, da diese dann ja immer matchen wuerde
+      if url_path == "/"
+        @path_regex = /^\/$/
+      else
+        @path_regex = /^#{url_path}/
+      end
+    end
+
+    def grant? path_or_model, method, login_ctx
+      rc = @path_regex =~ path_or_model
+      rc = !rc if @negation
+      rc
+    end
+  end
+
+  class ModelSpecification
+    def initialize clazz, negation
+      @clazz, @negation = clazz, negation
+    end
+
+    def grant? path_or_model, method, login_ctx
+      m_class = path_or_model.instance_of?(Class) ? path_or_model : path_or_model.class
+      rc = @clazz == m_class
+      rc = !rc if @negation
+      rc
+    end
+  end
+
+  class RoleSpecification
+    def initialize role, negation
+      @role, @negation = role, negation
+    end
+
+    def grant? path_or_model, method, login_ctx
+      return false if login_ctx.nil?
+      rc = login_ctx.has_role?(@role)
+      rc = !rc if @negation
+      rc
+    end
+  end
+
+  class MethodSpecification
+    def initialize method, negation
+      @method, @negation = method, negation
+    end
+
+    def grant? path_or_model, method, login_ctx
+      rc = @method==method
+      rc = !rc if @negation
+      rc
+    end
+  end
+
+  class ExtensionSpecification
+    def initialize method_name, negation, expected_value=nil
+      @method, @negation, @expected_value = method_name, negation, expected_value
+    end
+
+    def grant? path_or_model, method, login_ctx
+      return false if login_ctx_or_model.nil?
+      obj_to_check = path_or_model.is_a?(String) ? login_ctx : path_or_model
+      unless obj_to_check.respond_to?(key)
+        if path_or_model.is_a?(String)
+          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why Login-Context have not method '#{key}'!")
+        else
+          m_msg = obj_to_check.instance_of?(Class) ? "Class '#{obj_to_check.name}'" : "Object '#{obj_to_check.class}'"
+          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why #{m_msg} have not method '#{key}'!")
+        end
+        return false
+      end
+      rc = false
+      if @expected_value
+        rc = obj_to_check.send(key,@expected_value)
+      else
+        rc = obj_to_check.send(key)
+      end
+      rc = !rc if @deny
+      rc
+    end
+  end
+
+
+
+  # Abstracte base class for Access-Rules
   class BaseAccessRule
+    attr_reader :rule_spezifications
 
     def initialize
-      @roles = []
-      @access_method = :all
+      @rule_spezifications = []
     end
 
     # add role
     def role(role_name)
       raise "wrong role '#{role_name}'! Must be a symbol " unless role_name.is_a?(Symbol)
-      @roles << role_name
+      @rule_spezifications << RoleSpecification.new(role_name, @negation)
+      @negation = false if @negation
       self
     end
 
     # add list of roles
     def roles(*role_names)
-      role_names.flatten.each{|role_name| role(role_name)}
+      role_names.flatten.each do |role_name|
+        @rule_spezifications << RoleSpecification.new(role_name, @negation)
+      end
+      @negation = false if @negation
       self
     end
 
@@ -387,10 +489,20 @@ module Tuersteher
     #   method_name:      Symbol with the name of the method to call for addional check
     #   expected_value:   optional expected value for the result of the with metho_name specified method, defalt is true
     def extension method_name, expected_value=nil
-      @check_extensions ||= {}
-      @check_extensions[method_name] = expected_value
+      @rule_spezifications << ExtensionSpecification.new(method_name, @negation, expected_value)
+      @negation = false if @negation
       self
     end
+
+    # set methode for access
+    # access_method        Name of Methode for access as Symbol
+    def method(access_method)
+      return if access_method==:all  # :all is only syntax sugar
+      @rule_spezifications << MethodSpecification.new(access_method, @negation)
+      @negation = false if @negation
+      self
+    end
+
 
     # mark this rule as grant-rule
     def grant
@@ -408,34 +520,17 @@ module Tuersteher
       @deny
     end
 
-    # set methode for access
-    # access_method        Name of Methode for access as Symbol
-    def method(access_method)
-      @access_method = access_method
-      self
-    end
 
-    # negate role-membership
+    # negate role followed rule specification (role or extension
     def not
-      @not = true
+      @negation = true
       self
     end
 
-    protected
-
-    # check, if this rule granted for specified user
-    def grant_role? user
-      return true if @roles.empty?
-      return false if user.nil?
-      role = @roles.detect{|r| user.has_role?(r)}
-      role = !role if @not
-      return true if role
-      false
-    end
-
-    def grant_access_method? method
-      return true if @access_method==:all
-      @access_method == method
+    # check, if this rule fired for specified parameter
+    def fired? path_or_model, method, login_ctx
+      login_ctx = nil if login_ctx==:false # manche Authenticate-System setzen den login_ctx/user auf :false
+      @rule_spezifications.all?{|spec| spec.grant?(path_or_model, method, login_ctx)}
     end
 
   end # of BaseAccessRule
@@ -444,7 +539,7 @@ module Tuersteher
   class PathAccessRule < BaseAccessRule
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
-    attr_reader :path
+    attr_reader :path_spezification
 
     # Zugriffsregel
     #
@@ -453,22 +548,12 @@ module Tuersteher
     def initialize(path)
       raise "wrong path '#{path}'! Must be a String or :all ." unless path==:all or path.is_a?(String)
       super()
-      self.path = path
-    end
-
-    def path= url_path
-      @path = url_path
-      if url_path != :all
-        # path in regex ^#{path} wandeln ausser bei "/",
-        # dies darf keine Regex mit ^/ werden,
-        # da diese ja immer matchen wuerde
-        if url_path == "/"
-          @path_regex = /^\/$/
-        else
-          @path_regex = /^#{url_path}/
-        end
+      if path != :all # :all is only syntax sugar
+        @path_spezification = PathSpecification.new(path, @negation)
+        @rule_spezifications << @path_spezification
       end
     end
+
 
     # set http-methode
     # http_method        http-Method, allowed is :get, :put, :delete, :post, :all
@@ -480,53 +565,12 @@ module Tuersteher
 
 
 
-    # pruefen, ob Zugriff fuer angegebenen
-    # path / method fuer den current_user erlaubt ist
-    #
-    # user ist ein Object (meist der Loginuser),
-    # welcher die Methode 'has_role?(role)' besitzen muss.
-    # *roles ist dabei eine Array aus Symbolen
-    #
-    def fired?(path, method, user)
-      user = nil if user==:false # manche Authenticate-System setzen den user auf :false
-
-      if @path!=:all && !(@path_regex =~ path)
-        return false
-      end
-
-      return false unless grant_access_method?(method)
-      return false unless grant_role?(user)
-      return false unless grant_extension?(user)
-
-      true
-    end
-
-
     def to_s
-      s = "PathAccesRule[#{@deny ? 'DENY ' : ''}#{@path}, #{@access_method}, #{@roles.join(' ')}"
-      s << " #{@check_extensions.inspect}" if @check_extensions
+      s = 'PathAccesRule['
+      s << 'DENY ' if @deny
+      s << @rule_spezifications.map(&:to_s).join(', ')
       s << ']'
       s
-    end
-
-    private
-
-    # check, if this rule grant the defined extension (if exist)
-    def grant_extension? user
-      return true if @check_extensions.nil?
-      return false if user.nil?  # check_extensions need a user
-      @check_extensions.each do |key, value|
-        unless user.respond_to?(key)
-          Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why user have not check-extension method '#{key}'!")
-          return false
-        end
-        if value
-          return false unless user.send(key,value)
-        else
-          return false unless user.send(key)
-        end
-      end
-      true
     end
 
   end
@@ -538,74 +582,22 @@ module Tuersteher
     # erzeugt neue Object-Zugriffsregel
     #
     # clazz         Model-Klassenname oder :all fuer alle
-    # access_type   Zugriffsart (:create, :update, :destroy, :all o.A. selbst definierte Typem)
-    # roles         Aufzählung der erforderliche Rolen (:all für ist egal),
-    #               hier ist auch ein Array von Symbolen möglich
-    # block         optionaler Block, wird mit model und user aufgerufen und muss true oder false liefern
-    #               hier ein Beispiel mit Block:
-    #               <code>
-    #                 # Regel, in der sich jeder User selbst aendern darf
-    #                 ModelAccessRule.new(User, :update, :all){|model,user| model.id==user.id}
-    #               </code>
     #
     def initialize(clazz)
       raise "wrong clazz '#{clazz}'! Must be a Class or :all ." unless clazz==:all or clazz.is_a?(Class)
       super()
-      @clazz = clazz.instance_of?(Symbol) ? clazz : clazz.to_s
-    end
-
-
-    # liefert true, wenn zugriff fuer das angegebene model mit
-    # der Zugriffsart perm für das security_object hat
-    #
-    # model des zupruefende ModelObject
-    # perm gewunschte Zugriffsart (Symbol :create, :update, :destroy)
-    #
-    # user ist ein User-Object (meist der Loginuser),
-    # welcher die Methode 'has_role?(*roles)' besitzen muss.
-    # *roles ist dabei eine Array aus Symbolen
-    #
-    #
-    def fired? model, access_method, user
-      user = nil if user==:false # manche Authenticate-System setzen den user auf :false
-      m_class = model.instance_of?(Class) ? model : model.class
-      if @clazz!=m_class.to_s && @clazz!=:all
-        #Tuersteher::TLogger.logger.debug("#{to_s}.has_access? => false why #{@clazz}!=#{model.class.to_s} && #{@clazz}!=:all")
-        return false
+      if clazz != :all # :all is only syntax sugar
+        @rule_spezifications << ModelSpecification.new(clazz, @negation)
       end
-
-      return false unless grant_access_method?(access_method)
-      return false unless grant_role?(user)
-      return false unless grant_extension?(user, model)
-      true
     end
+
 
     def to_s
-      s = "ModelAccessRule[#{@deny ? 'DENY ' : ''}#{@clazz}, #{@access_method}, #{@roles.join(' ')}"
-      s << " #{@check_extensions.inspect}" if @check_extensions
+      s = 'ModelAccessRule['
+      s << 'DENY ' if @deny
+      s << @rule_spezifications.map(&:to_s).join(', ')
       s << ']'
       s
-    end
-
-    private
-
-    # check, if this rule grant the defined extension (if exist)
-    def grant_extension? user, model
-      return true if @check_extensions.nil?
-      return false if model.nil?  # check_extensions need a model
-      @check_extensions.each do |key, value|
-        unless model.respond_to?(key)
-          m_msg = model.instance_of?(Class) ? "Class '#{model.name}'" : "Object '#{model.class}'"
-          Tuersteher::TLogger.logger.warn("#{to_s}.fired? => false why #{m_msg} have not check-extension method '#{key}'!")
-          return false
-        end
-        if value
-          return false unless model.send(key,user,value)
-        else
-          return false unless model.send(key,user)
-        end
-      end
-      true
     end
 
   end

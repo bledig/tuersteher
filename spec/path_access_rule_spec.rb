@@ -150,20 +150,47 @@ module Tuersteher
     end # of context "deny" do
 
 
-    context "with not as role prefix" do
-      before(:all) do
-        @rule = PathAccessRule.new('/admin').deny.not.role(:admin)
-        @user = stub('user')
+    context "with not" do
+      context "as prefix for role" do
+        before(:all) do
+          @rule = PathAccessRule.new('/admin').deny.not.role(:admin)
+          @user = stub('user')
+        end
+
+        it "should not fired for user with role :admin" do
+          @user.stub(:has_role?){|role| role==:admin}
+          @rule.fired?("/admin", :get, @user).should_not be_true
+        end
+
+        it "should fired for user with role :user" do
+          @user.stub(:has_role?){|role| role==:user}
+          @rule.fired?("/admin", :get, @user).should be_true
+        end
       end
 
-      it "should not fired for user with role :admin" do
-        @user.stub(:has_role?){|role| role==:admin}
-        @rule.fired?("/admin", :get, @user).should_not be_true
-      end
+      context "as prefix for extension" do
+        before(:all) do
+          @rule = PathAccessRule.new('/admin').deny.role(:admin).not.extension(:login_ctx_method)
+          @user = stub('user')
+        end
 
-      it "should fired for user with role :user" do
-        @user.stub(:has_role?){|role| role==:user}
-        @rule.fired?("/admin", :get, @user).should be_true
+        it "should fired for user with role :admin and false for extension" do
+          @user.stub(:has_role?){|role| role==:admin}
+          @user.should_receive(:login_ctx_method).and_return(false)
+          @rule.fired?("/admin", :get, @user).should be_true
+        end
+
+        it "should not fired for user with role :admin and true for extension" do
+          @user.stub(:has_role?){|role| role==:admin}
+          @user.should_receive(:login_ctx_method).and_return(true)
+          @rule.fired?("/admin", :get, @user).should_not be_true
+        end
+
+        it "should not fired for user with role :user" do
+          @user.stub(:has_role?){|role| role==:user}
+          @rule.fired?("/admin", :get, @user).should be_true
+        end
+
       end
     end # of context "not" do
 
