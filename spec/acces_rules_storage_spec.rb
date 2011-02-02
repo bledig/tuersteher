@@ -58,8 +58,8 @@ end
           @path_rules = AccessRulesStorage.instance.path_rules
         end
 
-        specify{ @path_rules.first.path_specification.should be_nil }
-        specify{ @path_rules.last.path_specification.path.should == '/test/special' }
+        specify{ @path_rules.first.path_spezification.should be_nil }
+        specify{ @path_rules.last.path_spezification.path.should == '/test/special' }
 
       end
     end

@@ -404,14 +404,18 @@ module Tuersteher
     end
   end
 
-  class RoleSpecification
+  class RolesSpecification
+    attr_reader :roles, :negation
+
     def initialize role, negation
-      @role, @negation = role, negation
+      @negation = negation
+      @roles = [role]
     end
 
     def grant? path_or_model, method, login_ctx
       return false if login_ctx.nil?
-      rc = login_ctx.has_role?(@role)
+      # roles sind or verknüpft
+      rc = @roles.any?{|role| login_ctx.has_role?(role) }
       rc = !rc if @negation
       rc
     end
@@ -470,26 +474,36 @@ module Tuersteher
 
   # Abstracte base class for Access-Rules
   class BaseAccessRule
-    attr_reader :rule_spezifications, :role_spezifications
+    attr_reader :rule_spezifications
 
     def initialize
       @rule_spezifications = []
-      @role_spezifications = []
+      @last_role_specification
     end
 
     # add role
     def role(role_name)
       return self if role_name==:all  # :all is only syntax sugar
       raise "wrong role '#{role_name}'! Must be a symbol " unless role_name.is_a?(Symbol)
-      @role_spezifications << RoleSpecification.new(role_name, @negation)
+      # roles are OR-linked (per default)
+      # => add the role to RolesSpecification, create only new RolesSpecification if not exist
+      if @last_role_specification
+        raise("Mixin of role and not.role are yet not implemented!") if @negation != @last_role_specification.negation
+        @last_role_specification.roles << role_name
+      else
+        @last_role_specification = RolesSpecification.new(role_name, @negation)
+        @rule_spezifications << @last_role_specification
+      end
       @negation = false if @negation
       self
     end
 
     # add list of roles
     def roles(*role_names)
+      negation_state = @negation
       role_names.flatten.each do |role_name|
-        @role_spezifications << RoleSpecification.new(role_name, @negation)
+        self.role(role_name)
+        @negation = negation_state # keep Negation-State for all roles
       end
       @negation = false if @negation
       self
@@ -541,8 +555,7 @@ module Tuersteher
     # check, if this rule fired for specified parameter
     def fired? path_or_model, method, login_ctx
       login_ctx = nil if login_ctx==:false # manche Authenticate-System setzen den login_ctx/user auf :false
-      rc = @role_spezifications.empty? || @role_spezifications.any?{|spec| spec.grant?(path_or_model, method, login_ctx)}
-      rc && @rule_spezifications.all?{|spec| spec.grant?(path_or_model, method, login_ctx)}
+      @rule_spezifications.all?{|spec| spec.grant?(path_or_model, method, login_ctx)}
     end
 
 
@@ -550,7 +563,6 @@ module Tuersteher
       s = "#{self.class}["
       s << 'DENY ' if @deny
       s << @rule_spezifications.map(&:to_s).join(', ')
-      s << @role_spezifications.map(&:to_s).join(', ')
       s << ']'
       s
     end

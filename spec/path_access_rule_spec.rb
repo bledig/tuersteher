@@ -170,7 +170,7 @@ module Tuersteher
 
       context "as prefix for extension" do
         before(:all) do
-          @rule = PathAccessRule.new('/admin').deny.role(:admin).not.extension(:login_ctx_method)
+          @rule = PathAccessRule.new('/admin').grant.role(:admin).not.extension(:login_ctx_method)
           @user = stub('user')
         end
 
@@ -188,7 +188,7 @@ module Tuersteher
 
         it "should not fired for user with role :user" do
           @user.stub(:has_role?){|role| role==:user}
-          @rule.fired?("/admin", :get, @user).should be_true
+          @rule.fired?("/admin", :get, @user).should be_false
         end
 
       end

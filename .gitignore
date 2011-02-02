@@ -2,3 +2,4 @@ pkg
 .idea
 tuersteher*.gem
 nbproject
+.rvmrc
