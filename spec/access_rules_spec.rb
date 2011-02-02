@@ -177,7 +177,7 @@ module Tuersteher
     context 'purge_collection' do
 
       class SampleModel
-        def owner? user; false; end
+        def owner?(user); false; end
       end
 
       before do

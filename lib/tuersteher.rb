@@ -435,24 +435,33 @@ module Tuersteher
     end
 
     def grant? path_or_model, method, login_ctx
-      return false if login_ctx_or_model.nil?
-      obj_to_check = path_or_model.is_a?(String) ? login_ctx : path_or_model
-      unless obj_to_check.respond_to?(key)
-        if path_or_model.is_a?(String)
-          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why Login-Context have not method '#{key}'!")
-        else
-          m_msg = obj_to_check.instance_of?(Class) ? "Class '#{obj_to_check.name}'" : "Object '#{obj_to_check.class}'"
-          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why #{m_msg} have not method '#{key}'!")
-        end
-        return false
-      end
       rc = false
-      if @expected_value
-        rc = obj_to_check.send(key,@expected_value)
+      if path_or_model.is_a?(String)
+        # path-variante
+        return false if login_ctx.nil?
+        unless login_ctx.respond_to?(@method)
+          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why Login-Context have not method '#{@method}'!")
+          return false
+        end
+        if @expected_value
+          rc = login_ctx.send(@method, @expected_value)
+        else
+          rc = login_ctx.send(@method)
+        end
       else
-        rc = obj_to_check.send(key)
+        # model-variante
+        unless path_or_model.respond_to?(@method)
+          m_msg = path_or_model.instance_of?(Class) ? "Class '#{path_or_model.name}'" : "Object '#{path_or_model.class}'"
+          Tuersteher::TLogger.logger.warn("#{to_s}.grant? => false why #{m_msg} have not method '#{@method}'!")
+          return false
+        end
+        if @expected_value
+          rc = path_or_model.send(@method, login_ctx, @expected_value)
+        else
+          rc = path_or_model.send(@method, login_ctx)
+        end
       end
-      rc = !rc if @deny
+      rc = !rc if @negation
       rc
     end
   end
@@ -461,16 +470,18 @@ module Tuersteher
 
   # Abstracte base class for Access-Rules
   class BaseAccessRule
-    attr_reader :rule_spezifications
+    attr_reader :rule_spezifications, :role_spezifications
 
     def initialize
       @rule_spezifications = []
+      @role_spezifications = []
     end
 
     # add role
     def role(role_name)
+      return self if role_name==:all  # :all is only syntax sugar
       raise "wrong role '#{role_name}'! Must be a symbol " unless role_name.is_a?(Symbol)
-      @rule_spezifications << RoleSpecification.new(role_name, @negation)
+      @role_spezifications << RoleSpecification.new(role_name, @negation)
       @negation = false if @negation
       self
     end
@@ -478,7 +489,7 @@ module Tuersteher
     # add list of roles
     def roles(*role_names)
       role_names.flatten.each do |role_name|
-        @rule_spezifications << RoleSpecification.new(role_name, @negation)
+        @role_spezifications << RoleSpecification.new(role_name, @negation)
       end
       @negation = false if @negation
       self
@@ -497,7 +508,7 @@ module Tuersteher
     # set methode for access
     # access_method        Name of Methode for access as Symbol
     def method(access_method)
-      return if access_method==:all  # :all is only syntax sugar
+      return self if access_method==:all  # :all is only syntax sugar
       @rule_spezifications << MethodSpecification.new(access_method, @negation)
       @negation = false if @negation
       self
@@ -530,9 +541,19 @@ module Tuersteher
     # check, if this rule fired for specified parameter
     def fired? path_or_model, method, login_ctx
       login_ctx = nil if login_ctx==:false # manche Authenticate-System setzen den login_ctx/user auf :false
-      @rule_spezifications.all?{|spec| spec.grant?(path_or_model, method, login_ctx)}
+      rc = @role_spezifications.empty? || @role_spezifications.any?{|spec| spec.grant?(path_or_model, method, login_ctx)}
+      rc && @rule_spezifications.all?{|spec| spec.grant?(path_or_model, method, login_ctx)}
     end
 
+
+    def to_s
+      s = "#{self.class}["
+      s << 'DENY ' if @deny
+      s << @rule_spezifications.map(&:to_s).join(', ')
+      s << @role_spezifications.map(&:to_s).join(', ')
+      s << ']'
+      s
+    end
   end # of BaseAccessRule
 
 
@@ -563,16 +584,6 @@ module Tuersteher
       self
     end
 
-
-
-    def to_s
-      s = 'PathAccesRule['
-      s << 'DENY ' if @deny
-      s << @rule_spezifications.map(&:to_s).join(', ')
-      s << ']'
-      s
-    end
-
   end
 
 
@@ -589,15 +600,6 @@ module Tuersteher
       if clazz != :all # :all is only syntax sugar
         @rule_spezifications << ModelSpecification.new(clazz, @negation)
       end
-    end
-
-
-    def to_s
-      s = 'ModelAccessRule['
-      s << 'DENY ' if @deny
-      s << @rule_spezifications.map(&:to_s).join(', ')
-      s << ']'
-      s
     end
 
   end
