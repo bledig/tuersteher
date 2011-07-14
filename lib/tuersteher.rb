@@ -389,6 +389,10 @@ module Tuersteher
       rc = !rc if @negation
       rc
     end
+
+    def to_s
+      "Path[#{@negation&&'! '}#{@path}]"
+    end
   end
 
   class ModelSpecification
@@ -401,6 +405,10 @@ module Tuersteher
       rc = @clazz == m_class
       rc = !rc if @negation
       rc
+    end
+
+    def to_s
+      "Model[#{@negation&&'! '}#{@clazz}]"
     end
   end
 
@@ -419,6 +427,10 @@ module Tuersteher
       rc = !rc if @negation
       rc
     end
+
+    def to_s
+      "Role[#{@negation&&'! '}#{@roles.join(',')}]"
+    end
   end
 
   class MethodSpecification
@@ -430,6 +442,10 @@ module Tuersteher
       rc = @method==method
       rc = !rc if @negation
       rc
+    end
+
+    def to_s
+      "Method[#{@negation&&'! '}#{@method}]"
     end
   end
 
@@ -467,6 +483,11 @@ module Tuersteher
       end
       rc = !rc if @negation
       rc
+    end
+
+    def to_s
+      val_s = @expected_value.nil? ? nil :  "=#{@expected_value}"
+      "Extension[#{@negation&&'! '}#{@method}#{val_s}]"
     end
   end
 
