@@ -589,7 +589,6 @@ module Tuersteher
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
     attr_reader :path_spezification
-    @@_to_s = nil
 
     # Zugriffsregel
     #
@@ -614,14 +613,13 @@ module Tuersteher
     end
 
     def to_s
-      @@_to_s ||= super
+      @_to_s ||= super
     end
   end
 
 
 
   class ModelAccessRule < BaseAccessRule
-    @@_to_s = nil
 
     # erzeugt neue Object-Zugriffsregel
     #
@@ -637,7 +635,7 @@ module Tuersteher
 
 
     def to_s
-      @@_to_s ||= super
+      @_to_s ||= super
     end
   end
 
