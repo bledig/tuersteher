@@ -170,10 +170,8 @@ module Tuersteher
         if Tuersteher::TLogger.logger.debug?
           if rule.nil?
             s = 'denied'
-          elsif rule.deny?
-            s = "denied with #{rule}"
           else
-            s = "granted with #{rule}"
+            s = "fired with #{rule}"
           end
           usr_id = user && user.respond_to?(:id) ? user.id : user.object_id
           Tuersteher::TLogger.logger.debug("Tuersteher: path_access?(user.id=#{usr_id}, path=#{path}, method=#{method})  =>  #{s}")
@@ -391,7 +389,7 @@ module Tuersteher
     end
 
     def to_s
-      "Path[#{@negation&&'! '}#{@path}]"
+      "#{@negation && 'not.'}path('#{@path}')"
     end
   end
 
@@ -408,7 +406,7 @@ module Tuersteher
     end
 
     def to_s
-      "Model[#{@negation&&'! '}#{@clazz}]"
+      "#{@negation && 'not.'}model(#{@clazz})"
     end
   end
 
@@ -429,7 +427,8 @@ module Tuersteher
     end
 
     def to_s
-      "Role[#{@negation&&'! '}#{@roles.join(',')}]"
+      role_s = @roles.size == 1 ? "role(:#{@roles.first})" : "roles(#{@roles.map{|r| ":#{r}"}.join(',')})"
+      "#{@negation && 'not.'}#{role_s}"
     end
   end
 
@@ -445,7 +444,7 @@ module Tuersteher
     end
 
     def to_s
-      "Method[#{@negation&&'! '}#{@method}]"
+      "#{@negation && 'not.'}method(:#{@method})"
     end
   end
 
@@ -486,8 +485,8 @@ module Tuersteher
     end
 
     def to_s
-      val_s = @expected_value.nil? ? nil :  "=#{@expected_value}"
-      "Extension[#{@negation&&'! '}#{@method}#{val_s}]"
+      val_s = @expected_value.nil? ? nil :  ", #{@expected_value}"
+      "#{@negation && 'not.'}extension(:#{@method}#{val_s})"
     end
   end
 
@@ -581,11 +580,7 @@ module Tuersteher
 
 
     def to_s
-      s = "#{self.class}["
-      s << 'DENY ' if @deny
-      s << @rule_spezifications.map(&:to_s).join(', ')
-      s << ']'
-      s
+      "Rule[#{@deny ? 'deny' : 'grant'}.#{@rule_spezifications.map(&:to_s).join('.')}]"
     end
   end # of BaseAccessRule
 
@@ -594,6 +589,7 @@ module Tuersteher
 
     METHOD_NAMES = [:get, :edit, :put, :delete, :post, :all].freeze
     attr_reader :path_spezification
+    @@_to_s = nil
 
     # Zugriffsregel
     #
@@ -617,11 +613,15 @@ module Tuersteher
       self
     end
 
+    def to_s
+      @@_to_s ||= super
+    end
   end
 
 
 
   class ModelAccessRule < BaseAccessRule
+    @@_to_s = nil
 
     # erzeugt neue Object-Zugriffsregel
     #
@@ -635,6 +635,10 @@ module Tuersteher
       end
     end
 
+
+    def to_s
+      @@_to_s ||= super
+    end
   end
 
 end
