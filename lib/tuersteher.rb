@@ -35,7 +35,7 @@ module Tuersteher
   class AccessRulesStorage
     include Singleton
 
-    attr_accessor :rules_config_file # to set own access_rules-path
+    attr_writer :rules_config_file # to set own access_rules-path
 
     DEFAULT_RULES_CONFIG_FILE = 'access_rules.rb' # in config-dir
 
@@ -47,22 +47,45 @@ module Tuersteher
 
     # get all path_rules as array of PathAccessRule-Instances
     def path_rules
-      read_rules unless @was_read
+      read_rules_if_needed
       @path_rules
     end
 
     # get all model_rules as array of ModelAccessRule-Instances
     def model_rules
-      read_rules unless @was_read
+      read_rules_if_needed
       @model_rules
     end
 
+    
+    def read_rules_if_needed
+      if @was_read
+        # aller 5 Minuten pruefen ob AccessRules-File sich geändert hat
+        t = Time.now.to_i
+        if @last_read_check && (@last_read_check - t) > 300
+          @last_read_check = t
+          cur_mtime = File.mtime(self.rules_config_file)
+          if @last_mtime.nil? || cur_mtime > @last_mtime
+            @last_mtime = cur_mtime
+            read_rules
+          end
+        end
+      else
+        read_rules
+      end
+    end
+
+
+    def rules_config_file
+      @rules_config_file ||= File.join(Rails.root, 'config', DEFAULT_RULES_CONFIG_FILE)
+    end
 
     # evaluated rules_definitions and create path-/model-rules
     def eval_rules rules_definitions
       @path_rules = []
       @model_rules = []
       eval rules_definitions, binding, (@rules_config_file||'no file')
+      extend_path_rules_with_prefix @prefix
       @was_read = true
       Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
     end
@@ -70,15 +93,8 @@ module Tuersteher
     # Load AccesRules from file
     #  config/access_rules.rb
     def read_rules
-      @rules_config_file ||= File.join(Rails.root, 'config', DEFAULT_RULES_CONFIG_FILE)
-      rules_file = File.new @rules_config_file
       @was_read = false
-      content = nil
-      if @last_mtime.nil? || rules_file.mtime > @last_mtime
-        @last_mtime = rules_file.mtime
-        content = rules_file.read
-      end
-      rules_file.close
+      content = File.read self.rules_config_file
       if content
         eval_rules content
       end
@@ -86,6 +102,7 @@ module Tuersteher
       Tuersteher::TLogger.logger.error "Tuersteher::AccessRulesStorage - Error in rules: #{ex.message}\n\t"+ex.backtrace.join("\n\t")
     end
 
+    
     # definiert HTTP-Pfad-basierende Zugriffsregel
     #
     # path:            :all fuer beliebig, sonst String mit der http-path beginnen muss,
@@ -137,12 +154,20 @@ module Tuersteher
       rule.deny
     end
 
+
+    def path_prefix_processed?
+      !@path_prefix.nil?
+    end
+
+
     # Erweitern des Path um einen Prefix
     # Ist notwenig wenn z.B. die Rails-Anwendung nicht als root-Anwendung läuft
     # also root_path != '/' ist.'
     def extend_path_rules_with_prefix prefix
-      Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
       @path_prefix = prefix
+      return if prefix.nil? || prefix.size < 2
+      prefix.chomp!('/') # des abschliessende / entfernen
+      Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
       path_rules.each do |rule|
         path_spec = rule.path_spezification
         if path_spec
@@ -238,7 +263,6 @@ module Tuersteher
   module ControllerExtensions
 
     @@url_path_method = nil
-    @@prefix_checked = nil
 
     # Pruefen Zugriff fuer eine Web-action
     #
@@ -246,14 +270,10 @@ module Tuersteher
     # method      http-Methode (:get, :put, :delete, :post), default ist :get
     #
     def path_access?(path, method = :get)
-      unless @@prefix_checked
-        @@prefix_checked = true
+      ar_storage = AccessRulesStorage.instance
+      unless ar_storage.path_prefix_processed?
         prefix = respond_to?(:root_path) && root_path
-        if prefix.size > 1
-          prefix.chomp!('/') # des abschliessende / entfernen
-          AccessRulesStorage.instance.extend_path_rules_with_prefix(prefix)
-          Rails.logger.info "Tuersteher::ControllerExtensions: set path-prefix to: #{prefix}"
-        end
+        ar_storage.extend_path_rules_with_prefix(prefix)
       end
       AccessRules.path_access? current_user, path, method
     end

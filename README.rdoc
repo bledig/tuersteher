@@ -16,14 +16,19 @@ Create in your Rails-Application the rules-file "config/access_rules.rb"
 Here is as small sample for "config/access_rules.rb"
 
   # Path-Acces-Rules
-  grant_path '/', :get, :all
-  grant_path '/admin-area/', :all, :ADMIN
+  path('/').grant.method(:get)
+  path(:all).grant.role(:ADMIN)
+  path('/user/lock').deny.role(:USER).role(:APPROVER)
 
   # Model-Acces-Rules
-  grant_model Product, :view, :all
-  grant_model Product, :update, :EDITOR do |product, current_user|
-                         product.owner_id == current_user.id
-                       end
+  model(Dashboard).grant.method(:view)
+
+  model(Todo) do
+    grant.method(:view)
+    grant.method(:full_view).role(:ADMIN)
+    grant.method(:update).role(:EDITOR).extension(:owned_by?) # calls Todo.owned_by?(current_user)
+    grant-method(:delete).not.role(:ADMIN)
+  end
 
 Then extend your ApplicationController with:
 
@@ -35,9 +40,9 @@ Check if your authendicate-system has implemented the methods:
   * current_user
   * access_denied
 
-and the cuurent_user should have a method
+and the current_user should have a method
 
-  * has_role(*roles)
+  * has_role?(role)
 
 If not, just implemen it (see samples/application_controller.rb)
 
