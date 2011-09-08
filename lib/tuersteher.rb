@@ -36,6 +36,8 @@ module Tuersteher
     include Singleton
 
     attr_writer :rules_config_file # to set own access_rules-path
+    attr_accessor :check_intervall # check intervall in seconds to check config file
+    attr_accessor :path_prefix # prefix for path-rules
 
     DEFAULT_RULES_CONFIG_FILE = 'access_rules.rb' # in config-dir
 
@@ -43,6 +45,11 @@ module Tuersteher
     def initialize
       @path_rules = []
       @model_rules = []
+      @check_intervall = 300 # set default check interval to 5 minutes
+    end
+
+    def ready?
+      @was_read
     end
 
     # get all path_rules as array of PathAccessRule-Instances
@@ -57,15 +64,17 @@ module Tuersteher
       @model_rules
     end
 
-    
+
     def read_rules_if_needed
       if @was_read
-        # aller 5 Minuten pruefen ob AccessRules-File sich geändert hat
+        # im check_intervall pruefen ob AccessRules-File sich geändert hat
         t = Time.now.to_i
-        if @last_read_check && (@last_read_check - t) > 300
+        @last_read_check ||= t
+        if (t - @last_read_check) > @check_intervall
           @last_read_check = t
           cur_mtime = File.mtime(self.rules_config_file)
-          if @last_mtime.nil? || cur_mtime > @last_mtime
+          @last_mtime ||= cur_mtime
+          if cur_mtime > @last_mtime
             @last_mtime = cur_mtime
             read_rules
           end
@@ -85,9 +94,9 @@ module Tuersteher
       @path_rules = []
       @model_rules = []
       eval rules_definitions, binding, (@rules_config_file||'no file')
-      extend_path_rules_with_prefix @prefix
       @was_read = true
-      Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules"
+      Tuersteher::TLogger.logger.info "Tuersteher::AccessRulesStorage: #{@path_rules.size} path-rules and #{@model_rules.size} model-rules loaded"
+      extend_path_rules_with_prefix
     end
 
     # Load AccesRules from file
@@ -155,25 +164,21 @@ module Tuersteher
     end
 
 
-    def path_prefix_processed?
-      !@path_prefix.nil?
-    end
-
+    private
 
     # Erweitern des Path um einen Prefix
     # Ist notwenig wenn z.B. die Rails-Anwendung nicht als root-Anwendung läuft
     # also root_path != '/' ist.'
-    def extend_path_rules_with_prefix prefix
-      @path_prefix = prefix
-      return if prefix.nil? || prefix.size < 2
-      prefix.chomp!('/') # des abschliessende / entfernen
-      Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
-      path_rules.each do |rule|
+    def extend_path_rules_with_prefix
+      return if @path_prefix.nil? || @path_rules.nil?
+      prefix = @path_prefix.chomp('/') # das abschliessende / entfernen
+      @path_rules.each do |rule|
         path_spec = rule.path_spezification
         if path_spec
           path_spec.path = "#{prefix}#{path_spec.path}"
         end
       end
+      Tuersteher::TLogger.logger.info "extend_path_rules_with_prefix: #{prefix}"
     end
 
 
@@ -270,11 +275,6 @@ module Tuersteher
     # method      http-Methode (:get, :put, :delete, :post), default ist :get
     #
     def path_access?(path, method = :get)
-      ar_storage = AccessRulesStorage.instance
-      unless ar_storage.path_prefix_processed?
-        prefix = respond_to?(:root_path) && root_path
-        ar_storage.extend_path_rules_with_prefix(prefix)
-      end
       AccessRules.path_access? current_user, path, method
     end
 
@@ -310,8 +310,15 @@ module Tuersteher
     # fuer aktullen Request erlaubt ist
     def check_access
 
-      # im dev-mode rules bei jeden request auf Änderungen prüfen
-      AccessRulesStorage.instance.read_rules if Rails.env=='development'
+      ar_storage = AccessRulesStorage.instance
+      unless ar_storage.ready?
+        # bei nicht production-env check-intervall auf 5 sek setzen
+        ar_storage.check_intervall = 5 if Rails.env!='production'
+        # set root-path as prefix for all path rules
+        prefix = respond_to?(:root_path) && root_path
+        ar_storage.path_prefix = prefix if prefix && prefix.size > 1
+        ar_storage.read_rules
+      end
 
       # Rails3 hat andere url-path-methode
       @@url_path_method ||= Rails.version[0..1]=='3.' ? :fullpath : :request_uri
