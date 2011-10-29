@@ -133,7 +133,7 @@ module Tuersteher
     
     # definiert Model-basierende Zugriffsregel
     #
-    # model_class:  Model-Klassenname oder :all fuer alle
+    # model_class:  Model-Klassenname(als CLass oder String) oder :all fuer alle
     def model model_class
       if block_given?
         @current_rule_class = ModelAccessRule
@@ -422,11 +422,12 @@ module Tuersteher
 
   class ModelSpecification
     def initialize clazz, negation
+      clazz = clazz.name if clazz.is_a?(Class)
       @clazz, @negation = clazz, negation
     end
 
     def grant? path_or_model, method, login_ctx
-      m_class = path_or_model.instance_of?(Class) ? path_or_model : path_or_model.class
+      m_class = path_or_model.instance_of?(Class) ? path_or_model.name : path_or_model.class.name
       rc = @clazz == m_class
       rc = !rc if @negation
       rc
@@ -650,10 +651,10 @@ module Tuersteher
 
     # erzeugt neue Object-Zugriffsregel
     #
-    # clazz         Model-Klassenname oder :all fuer alle
+    # clazz         Model-Klassenname(als Class oder String) oder :all fuer alle
     #
     def initialize(clazz)
-      raise "wrong clazz '#{clazz}'! Must be a Class or :all ." unless clazz==:all or clazz.is_a?(Class)
+      raise "wrong clazz '#{clazz}'! Must be a Class/String or :all ." unless clazz==:all or clazz.is_a?(Class) or clazz.is_a?(String)
       super()
       if clazz != :all # :all is only syntax sugar
         @rule_spezifications << ModelSpecification.new(clazz, @negation)
