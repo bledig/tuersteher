@@ -320,8 +320,8 @@ module Tuersteher
         ar_storage.read_rules
       end
 
-      # Rails3 hat andere url-path-methode
-      @@url_path_method ||= Rails.version[0..1]=='3.' ? :fullpath : :request_uri
+      # Rails3/4 hat andere url-path-methode als Rails2
+      @@url_path_method ||= Rails.version[0..1]=='2.' ? :request_uri : :fullpath
 
       # bind current_user on the current thread
       Thread.current[:user] = current_user
