@@ -452,6 +452,26 @@ module Tuersteher
     end
   end
 
+  class RightSpecification
+    attr_reader :rights, :negation
+
+    def initialize right, negation
+      @negation = negation
+      @rights = [right]
+    end
+
+    def grant? path_or_model, method, login_ctx
+      return false if login_ctx.nil?
+      rc =@rights.any?{|right| login_ctx.has_right?(right) }
+      rc = !rc if @negation
+      rc
+    end
+
+    def to_s
+      "#{@negation && 'not.'}rights(#{@right.join(',')})"
+    end
+  end
+
   class MethodSpecification
     def initialize method, negation
       @method, @negation = method, negation
@@ -519,6 +539,24 @@ module Tuersteher
     def initialize
       @rule_spezifications = []
       @last_role_specification
+      @last_right_specification
+    end
+
+    # add right
+    def right(right_name)
+      return self if right_name==:all  # :all is only syntax sugar
+      raise "wrong right '#{right_name}'! Must be a symbol " unless right_name.is_a?(Symbol)
+      # rights are OR-linked (per default)
+      # => add the right to RightSpecification, create only new RightSpecification if not exist
+      if @last_right_specification
+        raise("Mixin of right and not.right are yet not implemented!") if @negation != @last_right_specification.negation
+        @last_right_specification.rights << right_name
+      else
+        @last_right_specification = RightSpecification.new(right_name, @negation)
+        @rule_spezifications << @last_right_specification
+      end
+      @negation = false if @negation
+      self
     end
 
     # add role

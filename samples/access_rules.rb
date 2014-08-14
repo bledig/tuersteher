@@ -17,6 +17,7 @@
 path('/').grant.method(:get)
 path(:all).grant.role(:ADMIN)
 path('/user/lock').deny.role(:USER).role(:APPROVER)
+path('/statistic').grant.right(:STATISTIK_SHOW)
 path('/special').grant.extension(:special?, :area1)
 path('/pictures') do
   grant.role(:admin)

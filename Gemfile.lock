@@ -1,0 +1,14 @@
+PATH
+  remote: .
+  specs:
+    tuersteher (0.6.4)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  tuersteher!

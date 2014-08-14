@@ -81,7 +81,7 @@ module Tuersteher
       end
 
 
-      context "Rule with no role spezifed => now role needed" do
+      context "Rule with no role spezifed => no role needed" do
         before(:all) do
           @rule = PathAccessRule.new('/public').method(:get)
           @user = stub('user')
