@@ -13,7 +13,7 @@ module Tuersteher
           PathAccessRule.new('/status').method(:get).role(:system)
         ]
         AccessRulesStorage.instance.stub(:path_rules).and_return(rules)
-        @user = stub('user')
+        @user = double('user')
       end
 
 
@@ -23,15 +23,15 @@ module Tuersteher
         end
 
         it "should be true for this paths" do
-          AccessRules.path_access?(@user, '/', :get).should be_true
-          AccessRules.path_access?(@user, '/', :post).should be_true
-          AccessRules.path_access?(@user, '/images', :get).should be_true
+          AccessRules.path_access?(@user, '/', :get).should be_truthy
+          AccessRules.path_access?(@user, '/', :post).should be_truthy
+          AccessRules.path_access?(@user, '/images', :get).should be_truthy
         end
 
         it "should not be true for this paths" do
-          AccessRules.path_access?(@user, '/admin', :get).should_not be_true
-          AccessRules.path_access?(@user, '/images', :post).should_not be_true
-          AccessRules.path_access?(@user, '/status', :get).should_not be_true
+          AccessRules.path_access?(@user, '/admin', :get).should_not be_truthy
+          AccessRules.path_access?(@user, '/images', :post).should_not be_truthy
+          AccessRules.path_access?(@user, '/status', :get).should_not be_truthy
         end
       end
 
@@ -42,15 +42,15 @@ module Tuersteher
         end
 
         it "should be true for this paths" do
-          AccessRules.path_access?(@user, '/', :get).should be_true
-          AccessRules.path_access?(@user, '/admin', :post).should be_true
-          AccessRules.path_access?(@user, '/images', :get).should be_true
+          AccessRules.path_access?(@user, '/', :get).should be_truthy
+          AccessRules.path_access?(@user, '/admin', :post).should be_truthy
+          AccessRules.path_access?(@user, '/images', :get).should be_truthy
         end
 
         it "should not be true for this paths" do
-          AccessRules.path_access?(@user, '/xyz', :get).should_not be_true
-          AccessRules.path_access?(@user, '/images', :post).should_not be_true
-          AccessRules.path_access?(@user, '/status', :get).should_not be_true
+          AccessRules.path_access?(@user, '/xyz', :get).should_not be_truthy
+          AccessRules.path_access?(@user, '/images', :post).should_not be_truthy
+          AccessRules.path_access?(@user, '/status', :get).should_not be_truthy
         end
       end
 
@@ -61,25 +61,25 @@ module Tuersteher
         end
 
         it "should be true for this paths" do
-          AccessRules.path_access?(@user, '/', :get).should be_true
-          AccessRules.path_access?(@user, '/status', :get).should be_true
+          AccessRules.path_access?(@user, '/', :get).should be_truthy
+          AccessRules.path_access?(@user, '/status', :get).should be_truthy
         end
 
         it "should not be true for this paths" do
-          AccessRules.path_access?(@user, '/xyz', :get).should_not be_true
-          AccessRules.path_access?(@user, '/admin', :post).should_not be_true
+          AccessRules.path_access?(@user, '/xyz', :get).should_not be_truthy
+          AccessRules.path_access?(@user, '/admin', :post).should_not be_truthy
         end
       end
 
 
       context "without user" do
         it "should be true for this paths" do
-          AccessRules.path_access?(nil, '/', :get).should be_true
+          AccessRules.path_access?(nil, '/', :get).should be_truthy
         end
 
         it "should not be true for this paths" do
-          AccessRules.path_access?(nil, '/xyz', :get).should_not be_true
-          AccessRules.path_access?(nil, '/admin', :post).should_not be_true
+          AccessRules.path_access?(nil, '/xyz', :get).should_not be_truthy
+          AccessRules.path_access?(nil, '/admin', :post).should_not be_truthy
         end
       end
     end
@@ -100,7 +100,7 @@ module Tuersteher
           ModelAccessRule.new(SampleModel2).grant.method(:all).role(:admin),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
-        @user = stub('user')
+        @user = double('user')
         @model1 = SampleModel1.new
         @model2 = SampleModel2.new
         @model2.stub(:owner?).and_return(false)
@@ -113,15 +113,15 @@ module Tuersteher
         end
 
         it "should be true for this" do
-          AccessRules.model_access?(@user, @model1, :xyz).should be_true
+          AccessRules.model_access?(@user, @model1, :xyz).should be_truthy
           @model2.stub(:owner?).and_return true
-          AccessRules.model_access?(@user, @model2, :read).should be_true
-          AccessRules.model_access?(@user, @model2, :update).should be_true
+          AccessRules.model_access?(@user, @model2, :read).should be_truthy
+          AccessRules.model_access?(@user, @model2, :update).should be_truthy
         end
 
         it "should not be true for this" do
-          AccessRules.model_access?(@user, @model2, :update).should_not be_true
-          AccessRules.model_access?(@user, @model2, :delete).should_not be_true
+          AccessRules.model_access?(@user, @model2, :update).should_not be_truthy
+          AccessRules.model_access?(@user, @model2, :delete).should_not be_truthy
         end
       end
 
@@ -132,14 +132,14 @@ module Tuersteher
         end
 
         it "should be true for this" do
-          AccessRules.model_access?(@user, @model1, :xyz).should be_true
-          AccessRules.model_access?(@user, @model2, :read).should be_true
-          AccessRules.model_access?(@user, @model2, :update).should be_true
-          AccessRules.model_access?(@user, @model2, :delete).should be_true
+          AccessRules.model_access?(@user, @model1, :xyz).should be_truthy
+          AccessRules.model_access?(@user, @model2, :read).should be_truthy
+          AccessRules.model_access?(@user, @model2, :update).should be_truthy
+          AccessRules.model_access?(@user, @model2, :delete).should be_truthy
         end
 
         it "should not be true for this" do
-          AccessRules.model_access?(@user, @model2, :create).should_not be_true
+          AccessRules.model_access?(@user, @model2, :create).should_not be_truthy
         end
       end
 
@@ -150,24 +150,24 @@ module Tuersteher
         end
 
         it "should be true for this" do
-          AccessRules.model_access?(@user, "test", :xyz).should be_true
-          AccessRules.model_access?(@user, @model1, :xyz).should be_true
-          AccessRules.model_access?(@user, @model2, :read).should be_true
-          AccessRules.model_access?(@user, @model2, :update).should be_true
-          AccessRules.model_access?(@user, @model2, :delete).should be_true
-          AccessRules.model_access?(@user, @model2, :create).should be_true
+          AccessRules.model_access?(@user, "test", :xyz).should be_truthy
+          AccessRules.model_access?(@user, @model1, :xyz).should be_truthy
+          AccessRules.model_access?(@user, @model2, :read).should be_truthy
+          AccessRules.model_access?(@user, @model2, :update).should be_truthy
+          AccessRules.model_access?(@user, @model2, :delete).should be_truthy
+          AccessRules.model_access?(@user, @model2, :create).should be_truthy
         end
       end
 
 
       context "without user" do
         it "should be true for this models" do
-          AccessRules.model_access?(nil, @model1, :xyz).should be_true
-          AccessRules.model_access?(nil, @model2, :read).should be_true
+          AccessRules.model_access?(nil, @model1, :xyz).should be_truthy
+          AccessRules.model_access?(nil, @model2, :read).should be_truthy
         end
 
         it "should not be true for this models" do
-          AccessRules.model_access?(nil, @model2, :update).should_not be_true
+          AccessRules.model_access?(nil, @model2, :update).should_not be_truthy
         end
       end
     end # of context 'model_access?'
@@ -186,7 +186,7 @@ module Tuersteher
           ModelAccessRule.new(SampleModel).method(:update).role(:user).extension(:owner?),
         ]
         AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
-        @user = stub('user')
+        @user = double('user')
         @model1 = SampleModel.new
         @model2 = SampleModel.new
         @model3 = SampleModel.new

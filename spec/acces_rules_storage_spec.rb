@@ -31,11 +31,11 @@ end
       end
 
       specify do
-        @path_rules.should have(5).items
+        expect(@path_rules.size).to eq(5)
       end
 
       specify do
-        @model_rules.should have(4).items
+        expect(@model_rules.size).to eq(4)
       end
 
       specify do

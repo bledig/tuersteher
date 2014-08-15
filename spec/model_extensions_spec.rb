@@ -16,7 +16,7 @@ module Tuersteher
     before do
       rules = [ModelAccessRule.new(SampleModel).grant.method(:deactived).role(:admin)]
       AccessRulesStorage.instance.stub(:model_rules).and_return(rules)
-      @user = stub('user')
+      @user = double('user')
       Thread.current[:user] = @user
     end
 
