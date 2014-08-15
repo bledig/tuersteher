@@ -53,8 +53,8 @@ end
   path(:all).grant.role(:ADMIN)
   path('/special').grant.role(:SPECIAL)
           EOR
+          AccessRulesStorage.instance.path_prefix = '/test'
           AccessRulesStorage.instance.eval_rules rule_defs
-          AccessRulesStorage.instance.extend_path_rules_with_prefix('/test')
           @path_rules = AccessRulesStorage.instance.path_rules
         end
 
