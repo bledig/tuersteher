@@ -476,7 +476,7 @@ module Tuersteher
     end
 
     def to_s
-      "#{@negation && 'not.'}rights(#{@right.join(',')})"
+      "#{@negation && 'not.'}rights(#{@rights.join(',')})"
     end
   end
 
