@@ -8,6 +8,7 @@
 
 require 'singleton'
 require 'logger'
+require 'thread'
 
 module Tuersteher
 
@@ -46,6 +47,7 @@ module Tuersteher
       @path_rules = []
       @model_rules = []
       @check_intervall = 300 # set default check interval to 5 minutes
+      @mutex = Mutex.new
     end
 
     def ready?
@@ -103,9 +105,12 @@ module Tuersteher
     #  config/access_rules.rb
     def read_rules
       @was_read = false
-      content = File.read self.rules_config_file
-      if content
-        eval_rules content
+      @mutex.synchronize do
+        return if @was_read # dann hat ein anderer Thread bereits gelesen
+        content = File.read self.rules_config_file
+        if content
+          eval_rules content
+        end
       end
     rescue => ex
       Tuersteher::TLogger.logger.error "Tuersteher::AccessRulesStorage - Error in rules: #{ex.message}\n\t"+ex.backtrace.join("\n\t")
